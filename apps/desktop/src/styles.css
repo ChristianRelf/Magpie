@@ -1,0 +1,234 @@
+@import "tailwindcss";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Magpie design tokens. Strictly neutral: black, white, charcoal, graphite
+ * and greys. State is never communicated by colour alone; icons and labels
+ * carry it.
+ *
+ * Chart series steps were validated for separation (OKLab dE >= 19) and
+ * >= 3:1 contrast against the chart surface in each theme.
+ */
+:root {
+  --bg: #fafafa;
+  --bg-subtle: #f4f4f4;
+  --surface: #ffffff;
+  --surface-2: #f5f5f5;
+  --surface-3: #ececec;
+  --border: #e6e6e6;
+  --border-strong: #d4d4d4;
+  --fg: #171717;
+  --fg-muted: #5f5f5f;
+  --fg-subtle: #8a8a8a;
+  --fg-faint: #b5b5b5;
+  --accent: #111111;
+  --accent-fg: #fafafa;
+  --ring: #171717;
+  --overlay: rgb(0 0 0 / 0.28);
+  --series-1: #171717;
+  --series-2: #5c5c5c;
+  --series-3: #949494;
+  --grid: #ededed;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -12px rgb(0 0 0 / 0.12);
+}
+
+.dark {
+  --bg: #0a0a0a;
+  --bg-subtle: #0d0d0d;
+  --surface: #121212;
+  --surface-2: #181818;
+  --surface-3: #202020;
+  --border: #222222;
+  --border-strong: #2f2f2f;
+  --fg: #ededed;
+  --fg-muted: #a3a3a3;
+  --fg-subtle: #737373;
+  --fg-faint: #4a4a4a;
+  --accent: #ededed;
+  --accent-fg: #0a0a0a;
+  --ring: #d4d4d4;
+  --overlay: rgb(0 0 0 / 0.6);
+  --series-1: #ededed;
+  --series-2: #a3a3a3;
+  --series-3: #626262;
+  --grid: #1e1e1e;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -12px rgb(0 0 0 / 0.7);
+}
+
+@theme inline {
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --color-bg: var(--bg);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-fg-faint: var(--fg-faint);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-ring: var(--ring);
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --shadow-panel: var(--shadow);
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "ss01", "cv11";
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  input,
+  textarea,
+  .selectable,
+  pre,
+  code {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  :focus-visible {
+    outline: 1.5px solid var(--ring);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--fg);
+    color: var(--bg);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  .hairline {
+    border-color: var(--border);
+  }
+  .fade-in {
+    animation: fade-in 160ms var(--ease-out-soft);
+  }
+  .rise-in {
+    animation: rise-in 200ms var(--ease-out-soft);
+  }
+  .refetching {
+    opacity: 0.55;
+    transition: opacity 160ms;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Recharts chrome: recessive hairlines, text tokens. */
+.recharts-cartesian-grid line {
+  stroke: var(--grid);
+}
+.recharts-cartesian-axis-tick-value {
+  fill: var(--fg-subtle);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+.recharts-surface:focus {
+  outline: none;
+}
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(16px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}

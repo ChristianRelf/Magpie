@@ -7,9 +7,14 @@
     "dev": "pnpm --filter @magpie/desktop tauri dev",
     "build": "pnpm --filter @magpie/desktop tauri build",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "build:ui": "pnpm --filter @magpie/desktop build",
+    "test:e2e": "pnpm --filter @magpie/desktop test:e2e"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.18"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.9"
   }
 }

@@ -14,7 +14,10 @@ Updated 2026-10-08. This record distinguishes implemented code from verified rel
 ## Verification checkpoints
 
 - Existing backend: 95 Rust tests passed before native-shell additions (API, engine, adapters, routing, accounting, store and security).
-- UI and desktop packaging: implementation and verification in progress.
+- Desktop TypeScript typecheck and Vite production build passed. SDK build imports successfully in Node.
+- Four SDK streaming tests and three calendar aggregation tests passed.
+- Playwright passed an end-to-end browser flow against an isolated local HTTP provider and the real Rust harness: onboarding, connect/discovery, generation, telemetry, every screen, favourites, execution details, routing persistence, scoped keys/revocation, settings after reload.
+- Tauri native shell compiles on Linux. Linux release packaging is in progress.
 - No live provider calls, signing, publication or updater release have been claimed.
 
 ## Remaining release work

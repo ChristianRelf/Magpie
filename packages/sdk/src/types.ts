@@ -17,14 +17,36 @@ export type ProviderKind =
   | "gemini_cli";
 
 export type AuthMethod = "api_key" | "cli_delegated" | "none";
-export type BillingMode = "subscription" | "metered" | "credits" | "local" | "unknown";
-export type ConnectionStatus = "connected" | "needs_auth" | "unavailable" | "error" | "disabled" | "pending";
-export type Provenance = "reported" | "calculated" | "estimated" | "unavailable";
+export type BillingMode =
+  "subscription" | "metered" | "credits" | "local" | "unknown";
+export type ConnectionStatus =
+  "connected" | "needs_auth" | "unavailable" | "error" | "disabled" | "pending";
+export type Provenance =
+  "reported" | "calculated" | "estimated" | "unavailable";
 export type QualityTier = "light" | "standard" | "high" | "frontier";
 export type SpeedClass = "slow" | "medium" | "fast";
-export type LimitState = "unknown" | "available" | "approaching" | "limited" | "exhausted" | "reset_pending";
-export type LimitMetric = "requests" | "tokens" | "input_tokens" | "output_tokens" | "usage_percent" | "credits" | "spend";
-export type RoutingPreset = "automatic" | "best_quality" | "fastest" | "economical" | "preserve_limits" | "manual";
+export type LimitState =
+  | "unknown"
+  | "available"
+  | "approaching"
+  | "limited"
+  | "exhausted"
+  | "reset_pending";
+export type LimitMetric =
+  | "requests"
+  | "tokens"
+  | "input_tokens"
+  | "output_tokens"
+  | "usage_percent"
+  | "credits"
+  | "spend";
+export type RoutingPreset =
+  | "automatic"
+  | "best_quality"
+  | "fastest"
+  | "economical"
+  | "preserve_limits"
+  | "manual";
 export type TaskClass =
   | "simple_question"
   | "code_generation"
@@ -39,7 +61,8 @@ export type TaskClass =
   | "general";
 export type Complexity = "low" | "medium" | "high";
 export type ExecutionStatus = "running" | "succeeded" | "failed" | "cancelled";
-export type FinishReason = "stop" | "length" | "tool_calls" | "refusal" | "cancelled" | "error";
+export type FinishReason =
+  "stop" | "length" | "tool_calls" | "refusal" | "cancelled" | "error";
 export type ErrorKind =
   | "authentication"
   | "permission_denied"
@@ -171,7 +194,10 @@ export interface AccountLimits {
 export interface ProviderAccount extends Account {
   model_count: number;
   available_model_count: number;
-  capabilities: Pick<Capabilities, "tools" | "vision" | "reasoning" | "structured_output" | "agentic">;
+  capabilities: Pick<
+    Capabilities,
+    "tools" | "vision" | "reasoning" | "structured_output" | "agentic"
+  >;
   limits: AccountLimits | null;
   descriptor: ProviderDescriptor;
 }
@@ -320,7 +346,8 @@ export interface TimeseriesPoint {
   avg_duration_ms: number | null;
 }
 
-export type GroupBy = "none" | "provider" | "model" | "account" | "task" | "status";
+export type GroupBy =
+  "none" | "provider" | "model" | "account" | "task" | "status";
 
 export interface BreakdownRow {
   key: string;
@@ -506,8 +533,19 @@ export interface ExecResult {
 }
 
 export type ExecEvent =
-  | { type: "started"; execution_id: string; model: SelectedModel; task: TaskClass; reasons: string[] }
-  | { type: "routing_changed"; from: SelectedModel; to: SelectedModel; reason: string }
+  | {
+      type: "started";
+      execution_id: string;
+      model: SelectedModel;
+      task: TaskClass;
+      reasons: string[];
+    }
+  | {
+      type: "routing_changed";
+      from: SelectedModel;
+      to: SelectedModel;
+      reason: string;
+    }
   | { type: "text_delta"; text: string }
   | { type: "reasoning_delta"; text: string }
   | { type: "tool_call"; call: ToolCall }
