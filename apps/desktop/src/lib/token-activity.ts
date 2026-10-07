@@ -9,7 +9,10 @@ export interface ActivityCell {
 }
 const DAY = 86_400_000;
 const dateFormat = new Intl.DateTimeFormat(undefined, {
-  day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
 });
 /** UTC day buckets match SQLite telemetry. Missing days are local zero activity. */
 export function buildTokenActivity(
@@ -46,19 +49,10 @@ export function buildTokenActivity(
       t,
       week,
       day: new Date(t).getUTCDay(),
-      value:
-        mode === "weekly"
-          ? (weekly.get(week) ?? 0)
-          : mode === "cumulative"
-            ? cumulative
-            : day.tokens,
+      value: mode === "weekly" ? (weekly.get(week) ?? 0) : mode === "cumulative" ? cumulative : day.tokens,
       requests: day.requests,
       label:
-        mode === "weekly"
-          ? `Week containing ${date}`
-          : mode === "cumulative"
-            ? `Cumulative through ${date}`
-            : date,
+        mode === "weekly" ? `Week containing ${date}` : mode === "cumulative" ? `Cumulative through ${date}` : date,
     });
   }
   return result;

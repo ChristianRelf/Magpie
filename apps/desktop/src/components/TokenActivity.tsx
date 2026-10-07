@@ -1,13 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  Cell,
-  ResponsiveContainer,
-  Scatter,
-  ScatterChart,
-  Tooltip as ChartTooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Cell, ResponsiveContainer, Scatter, ScatterChart, Tooltip as ChartTooltip, XAxis, YAxis } from "recharts";
 import { Panel, PanelHeader } from "./ui/core";
 import { Segmented } from "./ui/controls";
 import { QueryState } from "./QueryState";
@@ -16,21 +8,9 @@ import { useTimeseries } from "@/lib/queries";
 import { compact, integer } from "@/lib/format";
 import { buildTokenActivity, type ActivityCell } from "@/lib/token-activity";
 
-const shades = [
-  "var(--surface-3)",
-  "var(--fg-faint)",
-  "var(--fg-subtle)",
-  "var(--fg-muted)",
-  "var(--fg)",
-];
+const shades = ["var(--surface-3)", "var(--fg-faint)", "var(--fg-subtle)", "var(--fg-muted)", "var(--fg)"];
 const monthFormat = new Intl.DateTimeFormat(undefined, { month: "short", timeZone: "UTC" });
-function CellShape(props: {
-  cx?: number;
-  cy?: number;
-  fill?: string;
-  payload?: ActivityCell;
-  size: number;
-}) {
+function CellShape(props: { cx?: number; cy?: number; fill?: string; payload?: ActivityCell; size: number }) {
   return (
     <rect
       x={(props.cx ?? 0) - props.size / 2}
@@ -42,22 +22,14 @@ function CellShape(props: {
     />
   );
 }
-function ActivityTooltip({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: { payload: ActivityCell }[];
-}) {
+function ActivityTooltip({ active, payload }: { active?: boolean; payload?: { payload: ActivityCell }[] }) {
   if (!active || !payload?.[0]) return null;
   const p = payload[0].payload;
   return (
     <div className="rounded-md border border-border-strong bg-surface-2 px-3 py-2 text-xs shadow-panel">
       <p className="font-medium">{integer(p.value)} tokens</p>
       <p className="mt-1 text-fg-subtle">{p.label}</p>
-      <p className="mt-1 text-2xs text-fg-subtle">
-        {p.requests} requests on this day · UTC
-      </p>
+      <p className="mt-1 text-2xs text-fg-subtle">{p.requests} requests on this day · UTC</p>
     </div>
   );
 }
@@ -95,18 +67,10 @@ export function TokenActivity({
   const cellSize = Math.max(1, pitch - 3);
   const months = [
     ...new Map(
-      cells
-        .filter((c) => new Date(c.t).getUTCDate() <= 7)
-        .map((c) => [
-          c.week,
-          monthFormat.format(c.t),
-        ]),
+      cells.filter((c) => new Date(c.t).getUTCDate() <= 7).map((c) => [c.week, monthFormat.format(c.t)]),
     ).entries(),
   ].filter((_, i, all) => i === 0 || all[i - 1][1] !== all[i][1]);
-  const total = (query.data?.points ?? []).reduce(
-    (sum, p) => sum + p.input_tokens + p.output_tokens,
-    0,
-  );
+  const total = (query.data?.points ?? []).reduce((sum, p) => sum + p.input_tokens + p.output_tokens, 0);
   return (
     <Panel>
       <PanelHeader
@@ -125,11 +89,7 @@ export function TokenActivity({
           />
         }
       />
-      <QueryState
-        pending={query.isLoading}
-        error={query.error}
-        retry={query.refetch}
-      />
+      <QueryState pending={query.isLoading} error={query.error} retry={query.refetch} />
       {query.isSuccess && (
         <div className="px-4 pt-3 pb-4">
           <div className="overflow-x-auto">
@@ -138,38 +98,22 @@ export function TokenActivity({
               role="img"
               aria-label={`Token activity over the last year: ${integer(total)} tokens. ${mode} view. Hover a cell for details or click a date to filter analytics.`}
             >
-              <ResponsiveContainer
-                width="100%"
-                height={pitch * 7 + 32}
-                onResize={(width) => setChartWidth(width)}
-              >
+              <ResponsiveContainer width="100%" height={pitch * 7 + 32} onResize={(width) => setChartWidth(width)}>
                 <ScatterChart margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
                   <XAxis
                     type="number"
                     dataKey="week"
                     domain={[-0.5, weeks + 0.5]}
                     ticks={months.map(([w]) => w)}
-                    tickFormatter={(w: number) =>
-                      months.find(([week]) => week === w)?.[1] ?? ""
-                    }
+                    tickFormatter={(w: number) => months.find(([week]) => week === w)?.[1] ?? ""}
                     tickLine={false}
                     axisLine={false}
                     interval={0}
                     height={22}
                     tickMargin={8}
                   />
-                  <YAxis
-                    type="number"
-                    dataKey="day"
-                    domain={[-0.5, 6.5]}
-                    reversed
-                    hide
-                  />
-                  <ChartTooltip
-                    cursor={false}
-                    content={<ActivityTooltip />}
-                    isAnimationActive={false}
-                  />
+                  <YAxis type="number" dataKey="day" domain={[-0.5, 6.5]} reversed hide />
+                  <ChartTooltip cursor={false} content={<ActivityTooltip />} isAnimationActive={false} />
                   <Scatter
                     data={cells}
                     shape={<CellShape size={cellSize} />}
@@ -183,13 +127,7 @@ export function TokenActivity({
                     {cells.map((c) => (
                       <Cell
                         key={c.t}
-                        fill={
-                          shades[
-                            c.value === 0
-                              ? 0
-                              : 1 + Math.min(3, Math.floor((c.value / max) * 3))
-                          ]
-                        }
+                        fill={shades[c.value === 0 ? 0 : 1 + Math.min(3, Math.floor((c.value / max) * 3))]}
                       />
                     ))}
                   </Scatter>
@@ -198,31 +136,22 @@ export function TokenActivity({
             </div>
           </div>
           <div className="mt-2 flex items-center justify-between text-2xs text-fg-subtle">
-            <span>
-              {compact(total)} tokens in the last year · local harness usage
-            </span>
+            <span>{compact(total)} tokens in the last year · local harness usage</span>
             <span className="inline-flex items-center gap-1.5">
               Less{" "}
               {shades.map((fill) => (
-                <span
-                  key={fill}
-                  className="size-2 rounded-[2px]"
-                  style={{ background: fill }}
-                />
+                <span key={fill} className="size-2 rounded-[2px]" style={{ background: fill }} />
               ))}{" "}
               More
             </span>
           </div>
           {total === 0 && (
             <p className="mt-2 text-2xs text-fg-subtle">
-              No recorded token activity yet. Empty cells represent no recorded
-              usage.
+              No recorded token activity yet. Empty cells represent no recorded usage.
             </p>
           )}
           <details className="mt-2 text-2xs text-fg-subtle">
-            <summary className="cursor-pointer">
-              Accessible activity data
-            </summary>
+            <summary className="cursor-pointer">Accessible activity data</summary>
             <div className="mt-2 max-h-36 overflow-auto">
               {cells
                 .filter((c) => c.requests > 0)
