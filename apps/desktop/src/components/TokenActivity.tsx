@@ -27,14 +27,15 @@ function CellShape(props: {
   cy?: number;
   fill?: string;
   payload?: ActivityCell;
+  size: number;
 }) {
   return (
     <rect
-      x={(props.cx ?? 0) - 4.4}
-      y={(props.cy ?? 0) - 4.4}
-      width={8.8}
-      height={8.8}
-      rx={2}
+      x={(props.cx ?? 0) - props.size / 2}
+      y={(props.cy ?? 0) - props.size / 2}
+      width={props.size}
+      height={props.size}
+      rx={3}
       fill={props.fill}
     />
   );
@@ -70,6 +71,7 @@ export function TokenActivity({
 }) {
   const [mode, setMode] = useState<"daily" | "weekly" | "cumulative">("daily");
   const [anchor] = useState(() => Date.now());
+  const [chartWidth, setChartWidth] = useState(800);
   const end = Math.floor(anchor / 86_400_000) * 86_400_000;
   const start = end - 364 * 86_400_000;
   const query = useTimeseries({
@@ -86,6 +88,9 @@ export function TokenActivity({
   );
   const max = Math.max(1, ...cells.map((c) => c.value));
   const weeks = Math.max(1, ...cells.map((c) => c.week));
+  // Keep square cells and the same 3px gutter on both axes at every width.
+  const pitch = (chartWidth - 10) / (weeks + 1);
+  const cellSize = Math.max(1, pitch - 3);
   const months = [
     ...new Map(
       cells
@@ -130,11 +135,15 @@ export function TokenActivity({
         <div className="px-4 pt-3 pb-4">
           <div className="overflow-x-auto">
             <div
-              className="min-w-[640px]"
+              className="min-w-[800px]"
               role="img"
               aria-label={`Token activity over the last year: ${integer(total)} tokens. ${mode} view. Hover a cell for details or click a date to filter analytics.`}
             >
-              <ResponsiveContainer width="100%" height={120}>
+              <ResponsiveContainer
+                width="100%"
+                height={pitch * 7 + 32}
+                onResize={(width) => setChartWidth(width)}
+              >
                 <ScatterChart margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
                   <XAxis
                     type="number"
@@ -164,7 +173,7 @@ export function TokenActivity({
                   />
                   <Scatter
                     data={cells}
-                    shape={<CellShape />}
+                    shape={<CellShape size={cellSize} />}
                     isAnimationActive={false}
                     onClick={(p) => {
                       const cell = p.payload as ActivityCell;
