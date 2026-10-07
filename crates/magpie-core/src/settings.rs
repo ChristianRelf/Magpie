@@ -70,13 +70,7 @@ pub struct AnalyticsSettings {
 
 impl Default for AnalyticsSettings {
     fn default() -> Self {
-        Self {
-            retention_days: 90,
-            refresh_interval_secs: 5,
-            local_history: true,
-            poll_provider_limits: true,
-            spend_alert_usd: None,
-        }
+        Self { retention_days: 90, refresh_interval_secs: 5, local_history: true, poll_provider_limits: true, spend_alert_usd: None }
     }
 }
 
@@ -145,13 +139,7 @@ pub struct ServerSettings {
 
 impl Default for ServerSettings {
     fn default() -> Self {
-        Self {
-            port: 7878,
-            bind: "127.0.0.1".into(),
-            allow_network: false,
-            request_timeout_secs: 600,
-            max_concurrency: 16,
-        }
+        Self { port: 7878, bind: "127.0.0.1".into(), allow_network: false, request_timeout_secs: 600, max_concurrency: 16 }
     }
 }
 

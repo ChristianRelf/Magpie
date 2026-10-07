@@ -258,7 +258,13 @@ impl CodexAdapter {
                     None if limit_id != "codex" => format!("{limit_id} · {label}"),
                     None => label,
                 };
-                let mut lw = LimitWindow::new(&self.account.id, &format!("codex.{limit_id}.{slot}"), &label, LimitMetric::UsagePercent, Provenance::Reported);
+                let mut lw = LimitWindow::new(
+                    &self.account.id,
+                    &format!("codex.{limit_id}.{slot}"),
+                    &label,
+                    LimitMetric::UsagePercent,
+                    Provenance::Reported,
+                );
                 lw.used_percent = w["usedPercent"].as_f64();
                 lw.window_secs = mins.map(|m| m * 60);
                 lw.resets_at = w["resetsAt"].as_i64().and_then(|t| chrono::Utc.timestamp_opt(t, 0).single());
@@ -268,7 +274,13 @@ impl CodexAdapter {
             }
             let credits = &s["credits"];
             if credits["hasCredits"].as_bool() == Some(true) && credits["unlimited"].as_bool() != Some(true) {
-                let mut lw = LimitWindow::new(&self.account.id, &format!("codex.{limit_id}.credits"), "Credits", LimitMetric::Credits, Provenance::Reported);
+                let mut lw = LimitWindow::new(
+                    &self.account.id,
+                    &format!("codex.{limit_id}.credits"),
+                    "Credits",
+                    LimitMetric::Credits,
+                    Provenance::Reported,
+                );
                 lw.remaining = credits["balance"].as_str().and_then(|b| b.parse().ok()).or_else(|| credits["balance"].as_f64());
                 out.push(lw);
             }
@@ -401,7 +413,9 @@ impl ProviderAdapter for CodexAdapter {
     async fn execute(&self, req: &AdapterRequest, events: EventSender, cancel: CancellationToken) -> HarnessResult<ProviderOutcome> {
         let r = &req.request;
         if r.agent.is_none() {
-            return Err(HarnessError::invalid("Codex execution requires explicit agent options. Use an API provider for isolated text generation."));
+            return Err(HarnessError::invalid(
+                "Codex execution requires explicit agent options. Use an API provider for isolated text generation.",
+            ));
         }
         let server = self.server().await?;
         server.active.fetch_add(1, Ordering::SeqCst);
@@ -538,7 +552,8 @@ impl ProviderAdapter for CodexAdapter {
                             let mut e = classify_cli_failure(msg, None);
                             if matches!(e.kind, ErrorKind::QuotaExhausted | ErrorKind::RateLimited) {
                                 if let Some(snap) = server.rate_limits.lock().await.clone() {
-                                    e.resets_at = self.limits_from_snapshot(&snap).iter().filter(|l| l.exhausted).filter_map(|l| l.resets_at).min();
+                                    e.resets_at =
+                                        self.limits_from_snapshot(&snap).iter().filter(|l| l.exhausted).filter_map(|l| l.resets_at).min();
                                 }
                             }
                             return Err(e);

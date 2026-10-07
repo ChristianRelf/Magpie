@@ -124,7 +124,12 @@ async fn connect_discovers_models_and_executes_end_to_end() {
         "api-mid",
         vec![Script::Reply {
             chunks: vec!["Hel".into(), "lo".into()],
-            usage: TokenUsage { input_tokens: Some(1000), output_tokens: Some(500), provenance: Provenance::Reported, ..Default::default() },
+            usage: TokenUsage {
+                input_tokens: Some(1000),
+                output_tokens: Some(500),
+                provenance: Provenance::Reported,
+                ..Default::default()
+            },
             tool_calls: vec![],
         }],
     );

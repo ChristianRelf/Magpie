@@ -39,7 +39,8 @@ pub struct AppState {
 
 /// Origins allowed to call the API from a browser context: the desktop
 /// app's webview and its development server.
-const ALLOWED_ORIGINS: &[&str] = &["tauri://localhost", "http://tauri.localhost", "https://tauri.localhost", "http://localhost:1420", "http://127.0.0.1:1420"];
+const ALLOWED_ORIGINS: &[&str] =
+    &["tauri://localhost", "http://tauri.localhost", "https://tauri.localhost", "http://localhost:1420", "http://127.0.0.1:1420"];
 
 pub fn router(state: AppState) -> Router {
     let cors = CorsLayer::new()
@@ -115,9 +116,20 @@ pub async fn serve(harness: Arc<Harness>, stop: CancellationToken) -> HarnessRes
     serve_on(harness, listener, settings.server.allow_network, stop).await
 }
 
-pub async fn serve_on(harness: Arc<Harness>, listener: tokio::net::TcpListener, allow_network: bool, stop: CancellationToken) -> HarnessResult<()> {
+pub async fn serve_on(
+    harness: Arc<Harness>,
+    listener: tokio::net::TcpListener,
+    allow_network: bool,
+    stop: CancellationToken,
+) -> HarnessResult<()> {
     let local = listener.local_addr().map_err(|e| HarnessError::internal(e.to_string()))?;
-    let host = if local.ip().is_unspecified() { "127.0.0.1".to_string() } else if local.ip().is_ipv6() { format!("[{}]", local.ip()) } else { local.ip().to_string() };
+    let host = if local.ip().is_unspecified() {
+        "127.0.0.1".to_string()
+    } else if local.ip().is_ipv6() {
+        format!("[{}]", local.ip())
+    } else {
+        local.ip().to_string()
+    };
     let info = RuntimeInfo {
         pid: std::process::id(),
         port: local.port(),

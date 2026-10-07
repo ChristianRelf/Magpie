@@ -103,23 +103,16 @@ impl Store {
 
     fn migrate(&self) -> StoreResult<()> {
         let mut conn = self.conn.lock();
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL);",
-        )?;
+        conn.execute_batch("CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL);")?;
         for (name, sql) in migrations::MIGRATIONS {
-            let applied: bool = conn
-                .query_row("SELECT 1 FROM schema_migrations WHERE name = ?1", [name], |_| Ok(true))
-                .optional()?
-                .unwrap_or(false);
+            let applied: bool =
+                conn.query_row("SELECT 1 FROM schema_migrations WHERE name = ?1", [name], |_| Ok(true)).optional()?.unwrap_or(false);
             if applied {
                 continue;
             }
             let tx = conn.transaction()?;
             tx.execute_batch(sql)?;
-            tx.execute(
-                "INSERT INTO schema_migrations (name, applied_at) VALUES (?1, ?2)",
-                params![name, Utc::now().to_rfc3339()],
-            )?;
+            tx.execute("INSERT INTO schema_migrations (name, applied_at) VALUES (?1, ?2)", params![name, Utc::now().to_rfc3339()])?;
             tx.commit()?;
             tracing::info!(migration = name, "applied database migration");
         }
@@ -137,9 +130,7 @@ impl Store {
 
     pub fn get_kv<T: DeserializeOwned>(&self, key: &str) -> StoreResult<Option<T>> {
         let conn = self.conn.lock();
-        let v: Option<String> = conn
-            .query_row("SELECT value FROM kv WHERE key = ?1", [key], |r| r.get(0))
-            .optional()?;
+        let v: Option<String> = conn.query_row("SELECT value FROM kv WHERE key = ?1", [key], |r| r.get(0)).optional()?;
         match v {
             Some(s) => Ok(Some(serde_json::from_str(&s)?)),
             None => Ok(None),
@@ -284,18 +275,13 @@ impl Store {
                 Ok((r.get::<_, String>(0)?, data, parse_ts(r.get(2)?).unwrap_or_else(Utc::now)))
             })?
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(rows
-            .into_iter()
-            .filter_map(|(a, d, t)| serde_json::from_str(&d).ok().map(|m| (a, m, t)))
-            .collect())
+        Ok(rows.into_iter().filter_map(|(a, d, t)| serde_json::from_str(&d).ok().map(|m| (a, m, t))).collect())
     }
 
     pub fn model_prefs(&self) -> StoreResult<std::collections::HashMap<String, ModelPreference>> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare("SELECT model_key, data FROM model_prefs")?;
-        let rows = stmt
-            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
-            .collect::<Result<Vec<_>, _>>()?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?.collect::<Result<Vec<_>, _>>()?;
         Ok(rows.into_iter().filter_map(|(k, d)| serde_json::from_str(&d).ok().map(|p| (k, p))).collect())
     }
 
@@ -440,9 +426,7 @@ impl Store {
         let error = detail.error.or_else(|| {
             let kind: Option<String> = r.get("error_kind").ok().flatten();
             let msg: Option<String> = r.get("error_message").ok().flatten();
-            kind.map(|k| {
-                HarnessError::new(parse_enum(&k).unwrap_or(ErrorKind::Internal), msg.unwrap_or_default())
-            })
+            kind.map(|k| HarnessError::new(parse_enum(&k).unwrap_or(ErrorKind::Internal), msg.unwrap_or_default()))
         });
         let cost_usd: Option<f64> = r.get("cost_usd")?;
         let cost_prov: Option<String> = r.get("cost_provenance")?;
@@ -494,9 +478,7 @@ impl Store {
 
     pub fn get_execution(&self, id: &str) -> StoreResult<Option<ExecutionRecord>> {
         let conn = self.conn.lock();
-        Ok(conn
-            .query_row("SELECT * FROM executions WHERE id = ?1", [id], |r| Self::row_to_execution(r, true))
-            .optional()?)
+        Ok(conn.query_row("SELECT * FROM executions WHERE id = ?1", [id], |r| Self::row_to_execution(r, true)).optional()?)
     }
 
     /// Recent executions, newest first. Summary rows omit routing detail and
@@ -504,26 +486,19 @@ impl Store {
     pub fn list_executions(&self, q: &ExecutionQuery) -> StoreResult<Vec<ExecutionRecord>> {
         let conn = self.conn.lock();
         let (where_sql, args) = q.where_clause();
-        let sql = format!(
-            "SELECT * FROM executions {where_sql} ORDER BY created_at DESC LIMIT {} OFFSET {}",
-            q.limit.clamp(1, 5000),
-            q.offset
-        );
+        let sql =
+            format!("SELECT * FROM executions {where_sql} ORDER BY created_at DESC LIMIT {} OFFSET {}", q.limit.clamp(1, 5000), q.offset);
         let mut stmt = conn.prepare(&sql)?;
-        let rows = stmt
-            .query_map(rusqlite::params_from_iter(args.iter()), |r| Self::row_to_execution(r, false))?
-            .collect::<Result<_, _>>()?;
+        let rows =
+            stmt.query_map(rusqlite::params_from_iter(args.iter()), |r| Self::row_to_execution(r, false))?.collect::<Result<_, _>>()?;
         Ok(rows)
     }
 
     pub fn count_executions(&self, q: &ExecutionQuery) -> StoreResult<u64> {
         let conn = self.conn.lock();
         let (where_sql, args) = q.where_clause();
-        let n: i64 = conn.query_row(
-            &format!("SELECT COUNT(*) FROM executions {where_sql}"),
-            rusqlite::params_from_iter(args.iter()),
-            |r| r.get(0),
-        )?;
+        let n: i64 =
+            conn.query_row(&format!("SELECT COUNT(*) FROM executions {where_sql}"), rusqlite::params_from_iter(args.iter()), |r| r.get(0))?;
         Ok(n as u64)
     }
 
@@ -600,26 +575,20 @@ impl Store {
     pub fn client_by_hash(&self, hash: &str) -> StoreResult<Option<ApiClient>> {
         let conn = self.conn.lock();
         Ok(conn
-            .query_row(
-                "SELECT * FROM api_clients WHERE token_hash = ?1 AND revoked_at IS NULL",
-                [hash],
-                Self::row_to_client,
-            )
+            .query_row("SELECT * FROM api_clients WHERE token_hash = ?1 AND revoked_at IS NULL", [hash], Self::row_to_client)
             .optional()?)
     }
 
     pub fn touch_client(&self, id: &str) -> StoreResult<()> {
-        self.conn
-            .lock()
-            .execute("UPDATE api_clients SET last_used_at = ?2 WHERE id = ?1", params![id, Utc::now().to_rfc3339()])?;
+        self.conn.lock().execute("UPDATE api_clients SET last_used_at = ?2 WHERE id = ?1", params![id, Utc::now().to_rfc3339()])?;
         Ok(())
     }
 
     pub fn revoke_client(&self, id: &str) -> StoreResult<bool> {
-        let n = self.conn.lock().execute(
-            "UPDATE api_clients SET revoked_at = ?2 WHERE id = ?1 AND revoked_at IS NULL",
-            params![id, Utc::now().to_rfc3339()],
-        )?;
+        let n = self
+            .conn
+            .lock()
+            .execute("UPDATE api_clients SET revoked_at = ?2 WHERE id = ?1 AND revoked_at IS NULL", params![id, Utc::now().to_rfc3339()])?;
         Ok(n > 0)
     }
 
@@ -648,15 +617,7 @@ impl Store {
         Ok(rows
             .into_iter()
             .filter_map(|(kind, id, title, body, account_id, created, read)| {
-                Some(Notification {
-                    id,
-                    kind: parse_enum(&kind)?,
-                    title,
-                    body,
-                    account_id,
-                    created_at: from_ms(created),
-                    read: read != 0,
-                })
+                Some(Notification { id, kind: parse_enum(&kind)?, title, body, account_id, created_at: from_ms(created), read: read != 0 })
             })
             .collect())
     }

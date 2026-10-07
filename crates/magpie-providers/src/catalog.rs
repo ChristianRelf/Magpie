@@ -53,11 +53,8 @@ fn param_billions(id: &str) -> Option<f64> {
 /// (`anthropic`, `openai`, `google`, ...); for aggregators pass the id prefix.
 pub fn infer(vendor: &str, model_id: &str) -> CatalogEntry {
     let id = model_id.to_ascii_lowercase();
-    let vendor = if vendor == "openrouter" || vendor == "generic" {
-        id.split('/').next().unwrap_or(vendor).to_string()
-    } else {
-        vendor.to_string()
-    };
+    let vendor =
+        if vendor == "openrouter" || vendor == "generic" { id.split('/').next().unwrap_or(vendor).to_string() } else { vendor.to_string() };
     let bare = id.rsplit('/').next().unwrap_or(&id).to_string();
 
     if vendor == "anthropic" || bare.contains("claude") || ["opus", "sonnet", "haiku", "fable", "mythos"].contains(&bare.as_str()) {
@@ -66,7 +63,10 @@ pub fn infer(vendor: &str, model_id: &str) -> CatalogEntry {
     if vendor == "google" || bare.starts_with("gemini") || bare.starts_with("gemma") {
         return google(&bare);
     }
-    if vendor == "openai" || bare.starts_with("gpt") || bare.starts_with('o') && bare.chars().nth(1).map(|c| c.is_ascii_digit()).unwrap_or(false) {
+    if vendor == "openai"
+        || bare.starts_with("gpt")
+        || bare.starts_with('o') && bare.chars().nth(1).map(|c| c.is_ascii_digit()).unwrap_or(false)
+    {
         return openai(&bare);
     }
     open_model(&bare)
@@ -119,14 +119,27 @@ fn google(id: &str) -> CatalogEntry {
         caps.tools = false;
         caps.structured_output = false;
     }
-    CatalogEntry { tier, speed, capabilities: caps, context_window: Some(1_048_576), max_output: Some(65_536), pricing: None, display_name: None }
+    CatalogEntry {
+        tier,
+        speed,
+        capabilities: caps,
+        context_window: Some(1_048_576),
+        max_output: Some(65_536),
+        pricing: None,
+        display_name: None,
+    }
 }
 
 fn openai(id: &str) -> CatalogEntry {
     let mut caps = base_caps();
     caps.tools = true;
     caps.structured_output = true;
-    caps.vision = id.starts_with("gpt-4o") || id.starts_with("gpt-4.1") || id.starts_with("gpt-5") || id.starts_with("gpt-6") || id.starts_with("o3") || id.starts_with("o4");
+    caps.vision = id.starts_with("gpt-4o")
+        || id.starts_with("gpt-4.1")
+        || id.starts_with("gpt-5")
+        || id.starts_with("gpt-6")
+        || id.starts_with("o3")
+        || id.starts_with("o4");
     caps.reasoning = id.starts_with('o') || id.starts_with("gpt-5") || id.starts_with("gpt-6") || id.contains("codex");
     let light = id.contains("nano") || id.contains("luna") || id.contains("mini") || id.contains("3.5");
     let frontier = id.ends_with("-pro") || id.contains("astra") || id.contains("-pro-");
@@ -139,16 +152,31 @@ fn openai(id: &str) -> CatalogEntry {
     } else {
         (QualityTier::Standard, SpeedClass::Medium)
     };
-    let ctx = if id.starts_with("gpt-4.1") { Some(1_047_576) } else if id.starts_with("gpt-5") || id.starts_with("gpt-6") { Some(400_000) } else { Some(128_000) };
+    let ctx = if id.starts_with("gpt-4.1") {
+        Some(1_047_576)
+    } else if id.starts_with("gpt-5") || id.starts_with("gpt-6") {
+        Some(400_000)
+    } else {
+        Some(128_000)
+    };
     CatalogEntry { tier, speed, capabilities: caps, context_window: ctx, max_output: None, pricing: None, display_name: None }
 }
 
 fn open_model(id: &str) -> CatalogEntry {
     let mut caps = base_caps();
-    caps.tools = id.contains("instruct") || id.contains("llama-3") || id.contains("llama3") || id.contains("qwen") || id.contains("mistral")
-        || id.contains("deepseek") || id.contains("gpt-oss") || id.contains("kimi") || id.contains("glm") || id.contains("command");
+    caps.tools = id.contains("instruct")
+        || id.contains("llama-3")
+        || id.contains("llama3")
+        || id.contains("qwen")
+        || id.contains("mistral")
+        || id.contains("deepseek")
+        || id.contains("gpt-oss")
+        || id.contains("kimi")
+        || id.contains("glm")
+        || id.contains("command");
     caps.vision = id.contains("vision") || id.contains("-vl") || id.contains("llava") || id.contains("pixtral") || id.contains("gemma3");
-    caps.reasoning = id.contains("reasoner") || id.contains("r1") || id.contains("thinking") || id.contains("qwq") || id.contains("gpt-oss");
+    caps.reasoning =
+        id.contains("reasoner") || id.contains("r1") || id.contains("thinking") || id.contains("qwq") || id.contains("gpt-oss");
     caps.structured_output = caps.tools;
     let params = param_billions(id);
     let (tier, speed) = match params {
@@ -167,8 +195,25 @@ fn open_model(id: &str) -> CatalogEntry {
 pub fn is_text_model(id: &str) -> bool {
     let id = id.to_ascii_lowercase();
     const EXCLUDE: &[&str] = &[
-        "embed", "whisper", "tts", "dall-e", "davinci", "babbage", "moderation", "transcribe", "audio", "realtime",
-        "image", "sora", "guard", "rerank", "search-preview", "computer-use", "distil-whisper", "playai", "ocr",
+        "embed",
+        "whisper",
+        "tts",
+        "dall-e",
+        "davinci",
+        "babbage",
+        "moderation",
+        "transcribe",
+        "audio",
+        "realtime",
+        "image",
+        "sora",
+        "guard",
+        "rerank",
+        "search-preview",
+        "computer-use",
+        "distil-whisper",
+        "playai",
+        "ocr",
     ];
     !EXCLUDE.iter().any(|x| id.contains(x))
 }

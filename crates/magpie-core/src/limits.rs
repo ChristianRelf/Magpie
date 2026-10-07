@@ -124,12 +124,7 @@ pub struct AccountLimits {
 
 impl AccountLimits {
     pub fn from_windows(account_id: String, windows: Vec<LimitWindow>, now: Timestamp) -> Self {
-        let state = windows
-            .iter()
-            .map(|w| w.state_at(now, 0.8))
-            .filter(|s| *s != LimitState::Unknown)
-            .max()
-            .unwrap_or(LimitState::Unknown);
+        let state = windows.iter().map(|w| w.state_at(now, 0.8)).filter(|s| *s != LimitState::Unknown).max().unwrap_or(LimitState::Unknown);
         let next_reset = windows.iter().filter_map(|w| w.resets_at).filter(|r| *r > now).min();
         Self { account_id, state, windows, next_reset }
     }
@@ -204,11 +199,7 @@ mod tests {
     #[test]
     fn aggregate_takes_worst_known_state() {
         let now = crate::now();
-        let a = AccountLimits::from_windows(
-            "a".into(),
-            vec![window(None, None, None), window(Some(100.0), Some(10.0), None)],
-            now,
-        );
+        let a = AccountLimits::from_windows("a".into(), vec![window(None, None, None), window(Some(100.0), Some(10.0), None)], now);
         assert_eq!(a.state, LimitState::Approaching);
     }
 }

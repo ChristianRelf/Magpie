@@ -17,7 +17,9 @@ pub struct ExecutionHandle {
 }
 
 impl Harness {
-    fn route_input_snapshot(&self) -> (Vec<ModelInfo>, Vec<LimitWindow>, std::collections::HashMap<String, magpie_router::ModelHistory>, RoutingConfig) {
+    fn route_input_snapshot(
+        &self,
+    ) -> (Vec<ModelInfo>, Vec<LimitWindow>, std::collections::HashMap<String, magpie_router::ModelHistory>, RoutingConfig) {
         let cfg = self.routing_config();
         let history = if cfg.learn_from_history { self.history.read().clone() } else { Default::default() };
         (self.list_models(), self.limit_windows(), history, cfg)
@@ -27,7 +29,14 @@ impl Harness {
     pub fn route_preview(&self, req: &ExecRequest) -> HarnessResult<RoutingDecision> {
         req.validate()?;
         let (models, limits, history, cfg) = self.route_input_snapshot();
-        magpie_router::route(&magpie_router::RouteInput { request: req, models: &models, config: &cfg, limits: &limits, history: &history, now: now() })
+        magpie_router::route(&magpie_router::RouteInput {
+            request: req,
+            models: &models,
+            config: &cfg,
+            limits: &limits,
+            history: &history,
+            now: now(),
+        })
     }
 
     pub fn active_executions(&self) -> Vec<ExecutionSummary> {
@@ -195,11 +204,8 @@ impl Harness {
                         Err(HarnessError::cancelled())
                     } else {
                         let info = self.model_info(&cand.model.key);
-                        let default_max = info
-                            .as_ref()
-                            .and_then(|m| m.model.max_output_tokens)
-                            .map(|m| m.min(32_000) as u32)
-                            .unwrap_or(16_000);
+                        let default_max =
+                            info.as_ref().and_then(|m| m.model.max_output_tokens).map(|m| m.min(32_000) as u32).unwrap_or(16_000);
                         let areq = AdapterRequest {
                             model_id: cand.model.model_id.clone(),
                             request: req.clone(),
@@ -240,12 +246,22 @@ impl Harness {
             let duration_ms = attempt_clock.elapsed().as_millis() as u64;
             match result {
                 Ok(o) => {
-                    record.attempts.push(AttemptRecord { model: cand.model.clone(), started_at: attempt_started, duration_ms, error: None });
+                    record.attempts.push(AttemptRecord {
+                        model: cand.model.clone(),
+                        started_at: attempt_started,
+                        duration_ms,
+                        error: None,
+                    });
                     outcome = Some((o, cand));
                     break;
                 }
                 Err(e) => {
-                    record.attempts.push(AttemptRecord { model: cand.model.clone(), started_at: attempt_started, duration_ms, error: Some(e.clone()) });
+                    record.attempts.push(AttemptRecord {
+                        model: cand.model.clone(),
+                        started_at: attempt_started,
+                        duration_ms,
+                        error: Some(e.clone()),
+                    });
                     self.handle_provider_error(&cand.model, &e);
                     if e.kind == ErrorKind::Cancelled || cancel.is_cancelled() {
                         final_error = Some(HarnessError::cancelled());
@@ -269,7 +285,8 @@ impl Harness {
                     if decision.allow_fallback && e.kind.is_failover_candidate() && idx + 1 < decision.candidates.len() {
                         let next = decision.candidates[idx + 1].model.clone();
                         let reason = format!("{} ({})", e.message.chars().take(160).collect::<String>(), e.kind.as_str());
-                        let _ = tx.send(ExecEvent::RoutingChanged { from: cand.model.clone(), to: next.clone(), reason: reason.clone() }).await;
+                        let _ =
+                            tx.send(ExecEvent::RoutingChanged { from: cand.model.clone(), to: next.clone(), reason: reason.clone() }).await;
                         self.notify(
                             NotificationKind::FallbackActivated,
                             format!("Fallback to {}", next.display_name),
@@ -454,10 +471,11 @@ pub(crate) fn compute_cost(model: Option<&ModelInfo>, usage: &TokenUsage, report
     let pricing = model.pricing()?;
     let input = usage.input_tokens?;
     let usd = pricing.cost(input, usage.cached_input_tokens.unwrap_or(0), usage.output_tokens.unwrap_or(0));
-    let provenance = if usage.provenance == Provenance::Reported && matches!(pricing.provenance, Provenance::Reported | Provenance::Calculated) {
-        Provenance::Calculated
-    } else {
-        Provenance::Estimated
-    };
+    let provenance =
+        if usage.provenance == Provenance::Reported && matches!(pricing.provenance, Provenance::Reported | Provenance::Calculated) {
+            Provenance::Calculated
+        } else {
+            Provenance::Estimated
+        };
     Some(Cost { usd, provenance, api_equivalent: model.billing_mode == BillingMode::Subscription })
 }

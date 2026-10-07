@@ -114,7 +114,9 @@ impl ProviderAdapter for GeminiCliAdapter {
         let bin = self.binary()?;
         let r = &req.request;
         if r.agent.is_none() {
-            return Err(HarnessError::invalid("Gemini CLI execution requires explicit agent options. Use Gemini API for isolated text generation."));
+            return Err(HarnessError::invalid(
+                "Gemini CLI execution requires explicit agent options. Use Gemini API for isolated text generation.",
+            ));
         }
         let cwd = match &r.agent {
             Some(a) => PathBuf::from(&a.working_dir),
@@ -131,7 +133,9 @@ impl ProviderAdapter for GeminiCliAdapter {
         let stdin = Some(prompt);
         let remove_env: &[&str] = if self.account.billing_mode == BillingMode::Subscription {
             &["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_USE_VERTEXAI"]
-        } else { &[] };
+        } else {
+            &[]
+        };
         let mut cmd = command(&bin, remove_env);
         cmd.args(&args).current_dir(&cwd);
         let mut proc = JsonlProcess::spawn(cmd, stdin).await?;

@@ -21,9 +21,8 @@ pub struct GeminiAdapter {
 
 impl GeminiAdapter {
     pub fn new(account: Account, key: Option<String>) -> HarnessResult<Self> {
-        let key = key
-            .filter(|k| !k.is_empty())
-            .ok_or_else(|| HarnessError::new(ErrorKind::Authentication, "A Gemini API key is required"))?;
+        let key =
+            key.filter(|k| !k.is_empty()).ok_or_else(|| HarnessError::new(ErrorKind::Authentication, "A Gemini API key is required"))?;
         let base_url = http::base(&account.base_url().unwrap_or_else(|| "https://generativelanguage.googleapis.com".into()));
         Ok(Self { account, key, base_url, http: http::client() })
     }
@@ -61,10 +60,8 @@ impl GeminiAdapter {
                     let id = m.tool_call_id.clone().unwrap_or_default();
                     let name = call_names.get(&id).cloned().unwrap_or_else(|| id.clone());
                     let text = m.text_content();
-                    let response = serde_json::from_str::<Value>(&text)
-                        .ok()
-                        .filter(|v| v.is_object())
-                        .unwrap_or_else(|| json!({"result": text}));
+                    let response =
+                        serde_json::from_str::<Value>(&text).ok().filter(|v| v.is_object()).unwrap_or_else(|| json!({"result": text}));
                     push(&mut contents, "user", vec![json!({"functionResponse": {"name": name, "response": response}})]);
                 }
             }
@@ -122,7 +119,9 @@ fn parts_for(m: &Message) -> Vec<Value> {
             ContentPart::Text { text } => json!({"text": text}),
             ContentPart::Image { media_type, data, url } => match (data, url) {
                 (Some(d), _) => json!({"inlineData": {"mimeType": media_type.clone().unwrap_or_else(|| "image/png".into()), "data": d}}),
-                (None, Some(u)) => json!({"fileData": {"mimeType": media_type.clone().unwrap_or_else(|| "image/png".into()), "fileUri": u}}),
+                (None, Some(u)) => {
+                    json!({"fileData": {"mimeType": media_type.clone().unwrap_or_else(|| "image/png".into()), "fileUri": u}})
+                }
                 _ => json!({"text": ""}),
             },
         })
@@ -275,11 +274,8 @@ impl ProviderAdapter for GeminiAdapter {
                     call_n += 1;
                     saw_call = true;
                     let id = fc["id"].as_str().map(str::to_string).unwrap_or_else(|| format!("call_{call_n}"));
-                    let call = ToolCall {
-                        id,
-                        name: fc["name"].as_str().unwrap_or_default().to_string(),
-                        arguments: fc["args"].to_string(),
-                    };
+                    let call =
+                        ToolCall { id, name: fc["name"].as_str().unwrap_or_default().to_string(), arguments: fc["args"].to_string() };
                     emit(&events, ProviderEvent::ToolCall(call)).await?;
                 }
             }
@@ -331,9 +327,20 @@ mod tests {
             tool_call_id: None,
             tool_calls: vec![ToolCall { id: "c9".into(), name: "get_weather".into(), arguments: r#"{"city":"Oslo"}"#.into() }],
         });
-        r.messages.push(Message { role: Role::Tool, content: vec![ContentPart::Text { text: "cold".into() }], tool_call_id: Some("c9".into()), tool_calls: vec![] });
+        r.messages.push(Message {
+            role: Role::Tool,
+            content: vec![ContentPart::Text { text: "cold".into() }],
+            tool_call_id: Some("c9".into()),
+            tool_calls: vec![],
+        });
         r.response_format = Some(ResponseFormat::JsonObject);
-        let req = AdapterRequest { model_id: "gemini-x".into(), request: r, default_max_output: 1000, timeout: Duration::from_secs(5), scratch_dir: std::env::temp_dir() };
+        let req = AdapterRequest {
+            model_id: "gemini-x".into(),
+            request: r,
+            default_max_output: 1000,
+            timeout: Duration::from_secs(5),
+            scratch_dir: std::env::temp_dir(),
+        };
         let b = a.build_body(&req);
         assert_eq!(b["systemInstruction"]["parts"][0]["text"], "sys");
         assert_eq!(b["contents"][1]["role"], "model");

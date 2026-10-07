@@ -68,7 +68,9 @@ fn response_json(result: &ExecResult, routing: Option<(TaskClass, Vec<String>)>,
 pub async fn responses(State(s): State<AppState>, auth: Auth, Json(body): Json<ResponsesBody>) -> ApiResult<Response> {
     auth.require(Scope::Execute)?;
     let req = body.into_request()?;
-    if req.agent.is_some() { auth.require(Scope::Agent)?; }
+    if req.agent.is_some() {
+        auth.require(Scope::Agent)?;
+    }
     let stream = req.stream;
     let client = auth.0.name();
     if !stream {
@@ -124,12 +126,21 @@ pub async fn list_providers(State(s): State<AppState>, auth: Auth) -> ApiResult<
     Ok(Json(json!({"accounts": accounts, "kinds": kinds})))
 }
 
-pub async fn connect_provider(State(s): State<AppState>, auth: Auth, Json(req): Json<ConnectRequest>) -> ApiResult<(StatusCode, Json<Account>)> {
+pub async fn connect_provider(
+    State(s): State<AppState>,
+    auth: Auth,
+    Json(req): Json<ConnectRequest>,
+) -> ApiResult<(StatusCode, Json<Account>)> {
     auth.require(Scope::Admin)?;
     Ok((StatusCode::CREATED, Json(s.harness.connect(req).await?)))
 }
 
-pub async fn update_provider(State(s): State<AppState>, auth: Auth, Path(id): Path<String>, Json(p): Json<AccountPatch>) -> ApiResult<Json<Account>> {
+pub async fn update_provider(
+    State(s): State<AppState>,
+    auth: Auth,
+    Path(id): Path<String>,
+    Json(p): Json<AccountPatch>,
+) -> ApiResult<Json<Account>> {
     auth.require(Scope::Admin)?;
     Ok(Json(s.harness.update_account(&id, p).await?))
 }
@@ -319,7 +330,11 @@ pub async fn usage_export(State(s): State<AppState>, auth: Auth, Query(q): Query
             })
             .collect();
         let body = serde_json::to_string_pretty(&data).unwrap_or_default();
-        return Ok(([(header::CONTENT_TYPE, "application/json"), (header::CONTENT_DISPOSITION, "attachment; filename=\"magpie-usage.json\"")], body).into_response());
+        return Ok((
+            [(header::CONTENT_TYPE, "application/json"), (header::CONTENT_DISPOSITION, "attachment; filename=\"magpie-usage.json\"")],
+            body,
+        )
+            .into_response());
     }
     let mut out = String::from("id,created_at,status,task,client,provider,model,input_tokens,output_tokens,cached_tokens,reasoning_tokens,token_provenance,cost_usd,cost_provenance,api_equivalent,duration_ms,ttft_ms,attempts,error_kind\n");
     for r in &rows {
@@ -349,7 +364,11 @@ pub async fn usage_export(State(s): State<AppState>, auth: Auth, Query(q): Query
         out.push_str(&line);
         out.push('\n');
     }
-    Ok(([(header::CONTENT_TYPE, "text/csv; charset=utf-8"), (header::CONTENT_DISPOSITION, "attachment; filename=\"magpie-usage.csv\"")], out).into_response())
+    Ok((
+        [(header::CONTENT_TYPE, "text/csv; charset=utf-8"), (header::CONTENT_DISPOSITION, "attachment; filename=\"magpie-usage.csv\"")],
+        out,
+    )
+        .into_response())
 }
 
 pub async fn clear_history(State(s): State<AppState>, auth: Auth) -> ApiResult<Json<Value>> {

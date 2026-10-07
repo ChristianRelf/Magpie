@@ -170,7 +170,10 @@ pub fn route(input: &RouteInput) -> HarnessResult<RoutingDecision> {
         }
         if let Some(ctx) = m.model.context_window {
             if needed_context > ctx {
-                reject(format!("Context window too small ({} available, ~{} needed)", fmt_tokens(ctx), fmt_tokens(needed_context)), &mut rejected);
+                reject(
+                    format!("Context window too small ({} available, ~{} needed)", fmt_tokens(ctx), fmt_tokens(needed_context)),
+                    &mut rejected,
+                );
                 continue;
             }
         }
@@ -200,8 +203,10 @@ pub fn route(input: &RouteInput) -> HarnessResult<RoutingDecision> {
         }
 
         // Known remaining allowance (most constrained window).
-        let remaining = windows.iter().filter_map(|w| w.remaining_fraction()).fold(None, |acc: Option<f64>, r| Some(acc.map_or(r, |a| a.min(r))));
-        let reserve = m.preference.reserve_percent.or(if m.model.tier == QualityTier::Frontier { cfg.preserve_premium_percent } else { None });
+        let remaining =
+            windows.iter().filter_map(|w| w.remaining_fraction()).fold(None, |acc: Option<f64>, r| Some(acc.map_or(r, |a| a.min(r))));
+        let reserve =
+            m.preference.reserve_percent.or(if m.model.tier == QualityTier::Frontier { cfg.preserve_premium_percent } else { None });
         if let (Some(pct), Some(rem)) = (reserve, remaining) {
             if cl.complexity != Complexity::High && rem * 100.0 < pct && !is_pinned {
                 reject(format!("Reserving last {pct:.0}% of allowance for complex tasks ({:.0}% left)", rem * 100.0), &mut rejected);
@@ -215,11 +220,14 @@ pub fn route(input: &RouteInput) -> HarnessResult<RoutingDecision> {
         let history = input.history.get(&m.key);
 
         let mut quality = m.model.tier.score();
-        let reasoning_task = matches!(cl.task, TaskClass::MathReasoning | TaskClass::Planning | TaskClass::Debugging | TaskClass::RepositoryAnalysis);
+        let reasoning_task =
+            matches!(cl.task, TaskClass::MathReasoning | TaskClass::Planning | TaskClass::Debugging | TaskClass::RepositoryAnalysis);
         if reasoning_task && m.model.capabilities.reasoning {
             quality = (quality + 0.08).min(1.0);
         }
-        if matches!(cl.task, TaskClass::CodeGeneration | TaskClass::Debugging | TaskClass::RepositoryAnalysis) && m.model.capabilities.agentic {
+        if matches!(cl.task, TaskClass::CodeGeneration | TaskClass::Debugging | TaskClass::RepositoryAnalysis)
+            && m.model.capabilities.agentic
+        {
             quality = (quality + 0.04).min(1.0);
         }
         if m.model.tier >= QualityTier::High && cl.task != TaskClass::SimpleQuestion {
@@ -262,9 +270,7 @@ pub fn route(input: &RouteInput) -> HarnessResult<RoutingDecision> {
             reasons.push("Provider allowance not reported".into());
         }
 
-        let reliability = history
-            .map(|h| (h.requests - h.failures.min(h.requests) + 9) as f64 / (h.requests + 10) as f64)
-            .unwrap_or(0.9);
+        let reliability = history.map(|h| (h.requests - h.failures.min(h.requests) + 9) as f64 / (h.requests + 10) as f64).unwrap_or(0.9);
 
         let mut score = w.quality * quality + w.speed * speed + w.cost * cost_score + w.headroom * headroom;
         score *= 0.7 + 0.3 * reliability;

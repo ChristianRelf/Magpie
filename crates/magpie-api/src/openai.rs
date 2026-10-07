@@ -99,7 +99,10 @@ pub async fn chat_completions(State(s): State<AppState>, auth: Auth, Json(body):
         tools: parse_tools(&body["tools"])?,
         tool_choice: parse_tool_choice(&body["tool_choice"]),
         response_format: parse_response_format(&body["response_format"]),
-        max_output_tokens: body["max_completion_tokens"].as_u64().or_else(|| body["max_tokens"].as_u64()).map(|v| v.min(u32::MAX as u64) as u32),
+        max_output_tokens: body["max_completion_tokens"]
+            .as_u64()
+            .or_else(|| body["max_tokens"].as_u64())
+            .map(|v| v.min(u32::MAX as u64) as u32),
         temperature: body["temperature"].as_f64().map(|t| t as f32),
         reasoning_effort: body["reasoning_effort"].as_str().map(str::to_string),
         stream,
@@ -107,7 +110,9 @@ pub async fn chat_completions(State(s): State<AppState>, auth: Auth, Json(body):
         agent: ext.agent,
         metadata: body.get("metadata").cloned(),
     };
-    if req.agent.is_some() { auth.require(Scope::Agent)?; }
+    if req.agent.is_some() {
+        auth.require(Scope::Agent)?;
+    }
     let client = auth.0.name();
     let created = now().timestamp();
 

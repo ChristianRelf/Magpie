@@ -344,9 +344,7 @@ impl Account {
     }
 
     pub fn base_url(&self) -> Option<String> {
-        self.base_url
-            .clone()
-            .or_else(|| self.kind.descriptor().default_base_url.map(str::to_string))
+        self.base_url.clone().or_else(|| self.kind.descriptor().default_base_url.map(str::to_string))
     }
 
     pub fn is_usable(&self) -> bool {

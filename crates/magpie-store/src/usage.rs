@@ -146,8 +146,7 @@ impl Store {
                     SUM(attempts > 1)
                  FROM executions WHERE created_at >= ?1 AND created_at < ?2{fsql}"
             );
-            let mut args: Vec<rusqlite::types::Value> =
-                vec![rusqlite::types::Value::Integer(from), rusqlite::types::Value::Integer(to)];
+            let mut args: Vec<rusqlite::types::Value> = vec![rusqlite::types::Value::Integer(from), rusqlite::types::Value::Integer(to)];
             args.extend(fargs.iter().cloned().map(rusqlite::types::Value::Text));
             let mut s = conn.query_row(&sql, rusqlite::params_from_iter(args.iter()), |r| {
                 let u = |i: usize| -> rusqlite::Result<u64> { Ok(r.get::<_, Option<i64>>(i)?.unwrap_or(0) as u64) };
@@ -184,10 +183,8 @@ impl Store {
                     "SELECT duration_ms FROM executions WHERE created_at >= ?1 AND created_at < ?2 AND status = 'succeeded'
                      AND duration_ms IS NOT NULL{fsql} ORDER BY duration_ms LIMIT 1 OFFSET {offset}"
                 );
-                s.p95_duration_ms = conn
-                    .query_row(&sql, rusqlite::params_from_iter(args.iter()), |r| r.get::<_, i64>(0))
-                    .ok()
-                    .map(|v| v as f64);
+                s.p95_duration_ms =
+                    conn.query_row(&sql, rusqlite::params_from_iter(args.iter()), |r| r.get::<_, i64>(0)).ok().map(|v| v as f64);
             }
             let minutes = ((to - from) as f64 / 60_000.0).max(1.0);
             s.requests_per_minute = s.requests as f64 / minutes;
@@ -324,9 +321,7 @@ impl Store {
                  FROM executions WHERE created_at >= ?1 AND account_id IS NOT NULL GROUP BY account_id",
             )?;
             let rows = stmt
-                .query_map(params![since], |r| {
-                    Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)? as u64, r.get::<_, i64>(2)? as u64))
-                })?
+                .query_map(params![since], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)? as u64, r.get::<_, i64>(2)? as u64)))?
                 .collect::<Result<_, _>>()?;
             Ok(rows)
         })

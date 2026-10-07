@@ -4,7 +4,15 @@ fn caps(tools: bool, vision: bool) -> Capabilities {
     Capabilities { streaming: true, tools, vision, structured_output: tools, reasoning: true, agentic: false, system_prompt: true }
 }
 
-fn model(account: &str, id: &str, tier: QualityTier, speed: SpeedClass, billing: BillingMode, price: Option<(f64, f64)>, c: Capabilities) -> ModelInfo {
+fn model(
+    account: &str,
+    id: &str,
+    tier: QualityTier,
+    speed: SpeedClass,
+    billing: BillingMode,
+    price: Option<(f64, f64)>,
+    c: Capabilities,
+) -> ModelInfo {
     ModelInfo {
         key: format!("{account}/{id}"),
         account_id: account.into(),
@@ -24,7 +32,12 @@ fn model(account: &str, id: &str, tier: QualityTier, speed: SpeedClass, billing:
             capabilities: c,
             tier,
             speed,
-            pricing: price.map(|(i, o)| Pricing { input_per_mtok: i, output_per_mtok: o, cached_input_per_mtok: None, provenance: Provenance::Estimated }),
+            pricing: price.map(|(i, o)| Pricing {
+                input_per_mtok: i,
+                output_per_mtok: o,
+                cached_input_per_mtok: None,
+                provenance: Provenance::Estimated,
+            }),
             metadata_provenance: Provenance::Reported,
             is_default: false,
             reasoning_efforts: vec![],
@@ -157,7 +170,12 @@ fn explicit_model_is_pinned_and_unknown_fails() {
 
 #[test]
 fn manual_without_fallback_has_single_candidate() {
-    let cfg = RoutingConfig { preset: RoutingPreset::Manual, manual_model: Some("api/small".into()), allow_fallback: false, ..Default::default() };
+    let cfg = RoutingConfig {
+        preset: RoutingPreset::Manual,
+        manual_model: Some("api/small".into()),
+        allow_fallback: false,
+        ..Default::default()
+    };
     let d = run(&ExecRequest::simple("x"), &inventory(), &cfg, &[]).unwrap();
     assert_eq!(d.candidates.len(), 1);
     assert_eq!(d.selected().unwrap().model.key, "api/small");
@@ -201,6 +219,14 @@ fn history_penalises_unreliable_models() {
     let mut history = HashMap::new();
     history.insert("a/m1".to_string(), ModelHistory { requests: 50, failures: 30, avg_duration_ms: None, output_tps: None });
     let req = ExecRequest::simple("Explain how TCP slow start works in some detail please, thanks");
-    let d = route(&RouteInput { request: &req, models: &models, config: &RoutingConfig::default(), limits: &[], history: &history, now: now() }).unwrap();
+    let d = route(&RouteInput {
+        request: &req,
+        models: &models,
+        config: &RoutingConfig::default(),
+        limits: &[],
+        history: &history,
+        now: now(),
+    })
+    .unwrap();
     assert_eq!(d.selected().unwrap().model.key, "b/m2");
 }

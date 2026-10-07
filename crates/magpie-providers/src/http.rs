@@ -74,8 +74,11 @@ pub fn classify_error_body(status: u16, headers: &HeaderMap, body: &str) -> Harn
         || (status == 429 && lower.contains("quota") && (lower.contains("per day") || lower.contains("daily")))
     {
         err.kind = ErrorKind::QuotaExhausted;
-    } else if code.contains("context_length") || lower.contains("context length") || lower.contains("context window")
-        || lower.contains("too many tokens") || lower.contains("prompt is too long")
+    } else if code.contains("context_length")
+        || lower.contains("context length")
+        || lower.contains("context window")
+        || lower.contains("too many tokens")
+        || lower.contains("prompt is too long")
     {
         err.kind = ErrorKind::ContextLength;
     } else if code.contains("overloaded") || status == 529 {
@@ -95,9 +98,7 @@ pub fn retry_after(headers: &HeaderMap) -> Option<u64> {
     if let Ok(secs) = v.trim().parse::<f64>() {
         return Some(secs.ceil().max(0.0) as u64);
     }
-    DateTime::parse_from_rfc2822(v)
-        .ok()
-        .map(|d| (d.with_timezone(&Utc) - Utc::now()).num_seconds().max(0) as u64)
+    DateTime::parse_from_rfc2822(v).ok().map(|d| (d.with_timezone(&Utc) - Utc::now()).num_seconds().max(0) as u64)
 }
 
 fn google_retry_delay(json: Option<&serde_json::Value>) -> Option<u64> {
@@ -306,10 +307,7 @@ fn parse_block(block: &str) -> Option<SseEvent> {
 
 /// Turn a response body into a stream of SSE events, honouring cancellation
 /// and an idle timeout between chunks.
-pub fn sse_stream(
-    resp: reqwest::Response,
-    idle_timeout: Duration,
-) -> impl Stream<Item = HarnessResult<SseEvent>> {
+pub fn sse_stream(resp: reqwest::Response, idle_timeout: Duration) -> impl Stream<Item = HarnessResult<SseEvent>> {
     let bytes = resp.bytes_stream();
     futures::stream::unfold(
         (Box::pin(bytes), SseDecoder::default(), std::collections::VecDeque::new(), false),
@@ -321,16 +319,12 @@ pub fn sse_stream(
                 if done {
                     return None;
                 }
-                let next: Option<Result<Bytes, reqwest::Error>> =
-                    match tokio::time::timeout(idle_timeout, bytes.next()).await {
-                        Ok(n) => n,
-                        Err(_) => {
-                            return Some((
-                                Err(HarnessError::new(ErrorKind::Timeout, "Provider stream stalled")),
-                                (bytes, dec, pending, true),
-                            ))
-                        }
-                    };
+                let next: Option<Result<Bytes, reqwest::Error>> = match tokio::time::timeout(idle_timeout, bytes.next()).await {
+                    Ok(n) => n,
+                    Err(_) => {
+                        return Some((Err(HarnessError::new(ErrorKind::Timeout, "Provider stream stalled")), (bytes, dec, pending, true)))
+                    }
+                };
                 match next {
                     Some(Ok(chunk)) => pending.extend(dec.push(&chunk)),
                     Some(Err(e)) => return Some((Err(transport_error(e)), (bytes, dec, pending, true))),
@@ -381,7 +375,11 @@ mod tests {
         let h = HeaderMap::new();
         let e = classify_error_body(429, &h, r#"{"error":{"message":"You exceeded your current quota","code":"insufficient_quota"}}"#);
         assert_eq!(e.kind, ErrorKind::QuotaExhausted);
-        let e = classify_error_body(400, &h, r#"{"error":{"message":"This model's maximum context length is 8192 tokens","code":"context_length_exceeded"}}"#);
+        let e = classify_error_body(
+            400,
+            &h,
+            r#"{"error":{"message":"This model's maximum context length is 8192 tokens","code":"context_length_exceeded"}}"#,
+        );
         assert_eq!(e.kind, ErrorKind::ContextLength);
         let e = classify_error_body(529, &h, r#"{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}"#);
         assert_eq!(e.kind, ErrorKind::ProviderUnavailable);
@@ -392,7 +390,11 @@ mod tests {
 
     #[test]
     fn redacts_keys_in_error_messages() {
-        let e = classify_error_body(401, &HeaderMap::new(), r#"{"error":{"message":"Incorrect API key provided: sk-proj-abcdefghijklmnopqrstuvwxyz"}}"#);
+        let e = classify_error_body(
+            401,
+            &HeaderMap::new(),
+            r#"{"error":{"message":"Incorrect API key provided: sk-proj-abcdefghijklmnopqrstuvwxyz"}}"#,
+        );
         assert!(!e.message.contains("abcdefghijklmnop"));
     }
 

@@ -359,7 +359,9 @@ impl Harness {
                 })
             })
             .collect();
-        out.sort_by(|a, b| a.account_label.cmp(&b.account_label).then(b.model.tier.cmp(&a.model.tier)).then(a.model.model_id.cmp(&b.model.model_id)));
+        out.sort_by(|a, b| {
+            a.account_label.cmp(&b.account_label).then(b.model.tier.cmp(&a.model.tier)).then(a.model.model_id.cmp(&b.model.model_id))
+        });
         out
     }
 

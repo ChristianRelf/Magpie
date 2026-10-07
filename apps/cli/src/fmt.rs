@@ -30,7 +30,11 @@ pub fn table(headers: &[&str], rows: &[Vec<String>]) {
             .enumerate()
             .map(|(i, c)| {
                 let pad = widths[i].saturating_sub(c.chars().count());
-                if i + 1 == cells.len() { c.clone() } else { format!("{c}{}", " ".repeat(pad)) }
+                if i + 1 == cells.len() {
+                    c.clone()
+                } else {
+                    format!("{c}{}", " ".repeat(pad))
+                }
             })
             .collect::<Vec<_>>()
             .join("  ")

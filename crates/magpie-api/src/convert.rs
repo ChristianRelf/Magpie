@@ -256,7 +256,9 @@ mod tests {
     #[test]
     fn response_formats() {
         assert_eq!(parse_response_format(&json!({"type": "json_object"})), Some(ResponseFormat::JsonObject));
-        let f = parse_response_format(&json!({"type": "json_schema", "json_schema": {"name": "x", "schema": {"type": "object"}, "strict": true}}));
+        let f = parse_response_format(
+            &json!({"type": "json_schema", "json_schema": {"name": "x", "schema": {"type": "object"}, "strict": true}}),
+        );
         assert!(matches!(f, Some(ResponseFormat::JsonSchema { strict: true, .. })));
         assert_eq!(parse_tool_choice(&json!({"type": "function", "function": {"name": "f"}})), Some(ToolChoice::Tool { name: "f".into() }));
     }

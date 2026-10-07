@@ -63,10 +63,7 @@ impl ErrorKind {
 
     /// Whether retrying the same request on the *same* model might succeed.
     pub fn is_transient(self) -> bool {
-        matches!(
-            self,
-            ErrorKind::ProviderUnavailable | ErrorKind::Network | ErrorKind::Timeout
-        )
+        matches!(self, ErrorKind::ProviderUnavailable | ErrorKind::Network | ErrorKind::Timeout)
     }
 
     pub fn as_str(self) -> &'static str {
@@ -111,13 +108,7 @@ pub struct HarnessError {
 
 impl HarnessError {
     pub fn new(kind: ErrorKind, message: impl Into<String>) -> Self {
-        Self {
-            kind,
-            message: message.into(),
-            status: None,
-            retry_after_secs: None,
-            resets_at: None,
-        }
+        Self { kind, message: message.into(), status: None, retry_after_secs: None, resets_at: None }
     }
 
     pub fn with_status(mut self, status: i32) -> Self {

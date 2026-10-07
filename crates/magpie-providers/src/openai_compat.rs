@@ -52,9 +52,7 @@ pub struct OpenAiCompatAdapter {
 impl OpenAiCompatAdapter {
     pub fn new(account: Account, key: Option<String>) -> HarnessResult<Self> {
         let profile = profile(account.kind);
-        let base_url = account
-            .base_url()
-            .ok_or_else(|| HarnessError::invalid("A base URL is required for this provider"))?;
+        let base_url = account.base_url().ok_or_else(|| HarnessError::invalid("A base URL is required for this provider"))?;
         if profile.requires_key && key.as_deref().map(str::is_empty).unwrap_or(true) {
             return Err(HarnessError::new(ErrorKind::Authentication, "An API key is required"));
         }
@@ -256,8 +254,7 @@ fn parse_usage(u: &Value) -> Option<TokenUsage> {
     Some(TokenUsage {
         input_tokens: get(&u["prompt_tokens"]),
         output_tokens: get(&u["completion_tokens"]),
-        cached_input_tokens: get(&u["prompt_tokens_details"]["cached_tokens"])
-            .or_else(|| get(&u["prompt_cache_hit_tokens"])),
+        cached_input_tokens: get(&u["prompt_tokens_details"]["cached_tokens"]).or_else(|| get(&u["prompt_cache_hit_tokens"])),
         cache_write_tokens: None,
         reasoning_tokens: get(&u["completion_tokens_details"]["reasoning_tokens"]),
         provenance: Provenance::Reported,
@@ -278,19 +275,14 @@ impl ProviderAdapter for OpenAiCompatAdapter {
     }
 
     async fn verify(&self) -> HarnessResult<VerifiedIdentity> {
-        let resp = self
-            .request(reqwest::Method::GET, "/models")
-            .timeout(Duration::from_secs(20))
-            .send()
-            .await
-            .map_err(|e| {
-                let mut err = transport_error(e);
-                if self.account.descriptor().is_local {
-                    err.kind = ErrorKind::LocalDependency;
-                    err.message = format!("{} is not reachable at {}. Is it running?", self.account.descriptor().name, self.base_url);
-                }
-                err
-            })?;
+        let resp = self.request(reqwest::Method::GET, "/models").timeout(Duration::from_secs(20)).send().await.map_err(|e| {
+            let mut err = transport_error(e);
+            if self.account.descriptor().is_local {
+                err.kind = ErrorKind::LocalDependency;
+                err.message = format!("{} is not reachable at {}. Is it running?", self.account.descriptor().name, self.base_url);
+            }
+            err
+        })?;
         if !resp.status().is_success() {
             return Err(error_from_response(resp).await);
         }
@@ -310,12 +302,7 @@ impl ProviderAdapter for OpenAiCompatAdapter {
     }
 
     async fn discover_models(&self) -> HarnessResult<Vec<DiscoveredModel>> {
-        let resp = self
-            .request(reqwest::Method::GET, "/models")
-            .timeout(Duration::from_secs(30))
-            .send()
-            .await
-            .map_err(transport_error)?;
+        let resp = self.request(reqwest::Method::GET, "/models").timeout(Duration::from_secs(30)).send().await.map_err(transport_error)?;
         if !resp.status().is_success() {
             return Err(error_from_response(resp).await);
         }
@@ -340,10 +327,8 @@ impl ProviderAdapter for OpenAiCompatAdapter {
             }
             let mut d = catalog::discovered_from_catalog(self.profile.vendor, id, m["name"].as_str().map(str::to_string));
             d.description = m["description"].as_str().map(|s| s.chars().take(300).collect());
-            let reported_ctx = m["context_length"]
-                .as_u64()
-                .or_else(|| m["context_window"].as_u64())
-                .or_else(|| m["max_context_length"].as_u64());
+            let reported_ctx =
+                m["context_length"].as_u64().or_else(|| m["context_window"].as_u64()).or_else(|| m["max_context_length"].as_u64());
             if let Some(ctx) = reported_ctx {
                 d.context_window = Some(ctx);
                 d.metadata_provenance = Provenance::Reported;
@@ -554,8 +539,19 @@ mod tests {
             tool_call_id: None,
             tool_calls: vec![ToolCall { id: "c1".into(), name: "lookup".into(), arguments: "{}".into() }],
         });
-        r.messages.push(Message { role: Role::Tool, content: vec![ContentPart::Text { text: "42".into() }], tool_call_id: Some("c1".into()), tool_calls: vec![] });
-        let req = AdapterRequest { model_id: "gpt-x".into(), request: r, default_max_output: 1000, timeout: Duration::from_secs(5), scratch_dir: std::env::temp_dir() };
+        r.messages.push(Message {
+            role: Role::Tool,
+            content: vec![ContentPart::Text { text: "42".into() }],
+            tool_call_id: Some("c1".into()),
+            tool_calls: vec![],
+        });
+        let req = AdapterRequest {
+            model_id: "gpt-x".into(),
+            request: r,
+            default_max_output: 1000,
+            timeout: Duration::from_secs(5),
+            scratch_dir: std::env::temp_dir(),
+        };
         let b = a.build_body(&req);
         assert_eq!(b["messages"][0]["role"], "system");
         assert_eq!(b["messages"][1]["content"][1]["image_url"]["url"], "data:image/png;base64,AAAA");

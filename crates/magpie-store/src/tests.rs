@@ -165,9 +165,7 @@ fn usage_aggregation_respects_provenance() {
     assert_eq!(stats[0].requests, 4);
     assert_eq!(stats[0].failures, 1);
 
-    let filtered = s
-        .usage_summary(from, to, &UsageFilter { provider: Some("anthropic".into()), ..Default::default() })
-        .unwrap();
+    let filtered = s.usage_summary(from, to, &UsageFilter { provider: Some("anthropic".into()), ..Default::default() }).unwrap();
     assert_eq!(filtered.requests, 0);
 }
 
@@ -185,9 +183,7 @@ fn execution_detail_roundtrip_and_recovery() {
 
     let list = s.list_executions(&ExecutionQuery { limit: 10, ..Default::default() }).unwrap();
     assert_eq!(list.len(), 1);
-    let none = s
-        .list_executions(&ExecutionQuery { limit: 10, status: Some("succeeded".into()), ..Default::default() })
-        .unwrap();
+    let none = s.list_executions(&ExecutionQuery { limit: 10, status: Some("succeeded".into()), ..Default::default() }).unwrap();
     assert!(none.is_empty());
 }
 

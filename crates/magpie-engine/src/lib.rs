@@ -201,7 +201,10 @@ impl Harness {
         if !(1..=3600).contains(&new.analytics.refresh_interval_secs) {
             return Err(HarnessError::invalid("Refresh interval must be between 1 and 3600 seconds"));
         }
-        if new.server.port == 0 || !(1..=3600).contains(&new.server.request_timeout_secs) || !(1..=128).contains(&new.server.max_concurrency) {
+        if new.server.port == 0
+            || !(1..=3600).contains(&new.server.request_timeout_secs)
+            || !(1..=128).contains(&new.server.max_concurrency)
+        {
             return Err(HarnessError::invalid("Choose a non-zero port, a timeout of 1–3600 seconds, and 1–128 concurrent executions"));
         }
         if new.analytics.spend_alert_usd.is_some_and(|v| !v.is_finite() || v < 0.0) {
@@ -211,7 +214,9 @@ impl Harness {
             self.apply_autostart(new.general.launch_on_startup)?;
         }
         if let Err(error) = self.store.save_settings(&new) {
-            if old.general.launch_on_startup != new.general.launch_on_startup { let _ = self.apply_autostart(old.general.launch_on_startup); }
+            if old.general.launch_on_startup != new.general.launch_on_startup {
+                let _ = self.apply_autostart(old.general.launch_on_startup);
+            }
             return Err(error.into());
         }
         *self.settings.write() = new.clone();
@@ -268,15 +273,8 @@ impl Harness {
         if !self.settings.read().notifications.allows(kind) {
             return;
         }
-        let n = Notification {
-            id: new_id("ntf"),
-            kind,
-            title: title.into(),
-            body: body.into(),
-            account_id,
-            created_at: now(),
-            read: false,
-        };
+        let n =
+            Notification { id: new_id("ntf"), kind, title: title.into(), body: body.into(), account_id, created_at: now(), read: false };
         if let Err(e) = self.store.insert_notification(&n) {
             tracing::warn!(error = %e, "could not store notification");
         }
@@ -284,7 +282,14 @@ impl Harness {
     }
 
     /// Notify once per unique key (e.g. per limit window and reset period).
-    pub(crate) fn notify_once(&self, key: String, kind: NotificationKind, title: impl Into<String>, body: impl Into<String>, account_id: Option<String>) {
+    pub(crate) fn notify_once(
+        &self,
+        key: String,
+        kind: NotificationKind,
+        title: impl Into<String>,
+        body: impl Into<String>,
+        account_id: Option<String>,
+    ) {
         if self.notified.write().insert(key) {
             self.notify(kind, title, body, account_id);
         }

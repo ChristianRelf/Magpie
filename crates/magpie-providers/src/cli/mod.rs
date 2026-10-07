@@ -172,9 +172,7 @@ pub struct JsonlProcess {
 
 impl JsonlProcess {
     pub async fn spawn(mut cmd: Command, stdin_data: Option<String>) -> HarnessResult<Self> {
-        cmd.stdin(if stdin_data.is_some() { Stdio::piped() } else { Stdio::null() })
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
+        cmd.stdin(if stdin_data.is_some() { Stdio::piped() } else { Stdio::null() }).stdout(Stdio::piped()).stderr(Stdio::piped());
         let program = cmd.as_std().get_program().to_owned();
         let mut child = cmd.spawn().map_err(|e| spawn_error(Path::new(&program), e))?;
         if let Some(data) = stdin_data {
@@ -295,18 +293,32 @@ pub fn classify_cli_failure(text: &str, code: Option<i32>) -> HarnessError {
     } else {
         text.trim().chars().take(600).collect()
     };
-    let kind = if lower.contains("not logged in") || lower.contains("please run /login") || lower.contains("login required")
-        || lower.contains("authentication") || lower.contains("invalid api key") || lower.contains("unauthorized")
-        || lower.contains("oauth token has expired") || lower.contains("sign in")
+    let kind = if lower.contains("not logged in")
+        || lower.contains("please run /login")
+        || lower.contains("login required")
+        || lower.contains("authentication")
+        || lower.contains("invalid api key")
+        || lower.contains("unauthorized")
+        || lower.contains("oauth token has expired")
+        || lower.contains("sign in")
     {
         ErrorKind::Authentication
-    } else if lower.contains("usage limit") || lower.contains("limit reached") || lower.contains("quota") || lower.contains("out of credits") {
+    } else if lower.contains("usage limit")
+        || lower.contains("limit reached")
+        || lower.contains("quota")
+        || lower.contains("out of credits")
+    {
         ErrorKind::QuotaExhausted
     } else if lower.contains("rate limit") || lower.contains("429") || lower.contains("too many requests") {
         ErrorKind::RateLimited
     } else if lower.contains("overloaded") || lower.contains("529") || lower.contains("503") || lower.contains("internal server error") {
         ErrorKind::ProviderUnavailable
-    } else if lower.contains("model") && (lower.contains("not found") || lower.contains("not available") || lower.contains("does not exist") || lower.contains("not supported")) {
+    } else if lower.contains("model")
+        && (lower.contains("not found")
+            || lower.contains("not available")
+            || lower.contains("does not exist")
+            || lower.contains("not supported"))
+    {
         ErrorKind::ModelNotFound
     } else if lower.contains("context") && (lower.contains("too long") || lower.contains("exceed")) {
         ErrorKind::ContextLength

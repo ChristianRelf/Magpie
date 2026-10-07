@@ -170,7 +170,14 @@ fn prompt_text(parts: Vec<String>) -> Result<String> {
     Ok(prompt)
 }
 
-fn request_body(prompt: String, model: Option<String>, preset: Option<String>, task: Option<String>, system: Option<String>, stream: bool) -> Value {
+fn request_body(
+    prompt: String,
+    model: Option<String>,
+    preset: Option<String>,
+    task: Option<String>,
+    system: Option<String>,
+    stream: bool,
+) -> Value {
     let mut body = json!({"input": prompt, "model": model.unwrap_or_else(|| "auto".into()), "stream": stream});
     if let Some(p) = preset {
         body["preferences"] = json!({"preset": p});
@@ -326,18 +333,28 @@ async fn run(cli: Cli) -> Result<()> {
                 .map(|m| {
                     let i = &m["magpie"];
                     let caps = &i["capabilities"];
-                    let flags: Vec<&str> = [("tools", "tools"), ("vision", "vision"), ("reasoning", "reason"), ("structured_output", "json"), ("agentic", "agent")]
-                        .iter()
-                        .filter(|(k, _)| caps[*k] == true)
-                        .map(|(_, l)| *l)
-                        .collect();
+                    let flags: Vec<&str> = [
+                        ("tools", "tools"),
+                        ("vision", "vision"),
+                        ("reasoning", "reason"),
+                        ("structured_output", "json"),
+                        ("agentic", "agent"),
+                    ]
+                    .iter()
+                    .filter(|(k, _)| caps[*k] == true)
+                    .map(|(_, l)| *l)
+                    .collect();
                     vec![
                         m["id"].as_str().unwrap_or_default().to_string(),
                         i["account_label"].as_str().unwrap_or_default().to_string(),
                         i["tier"].as_str().unwrap_or_default().to_string(),
                         i["context_window"].as_u64().map(compact).unwrap_or_else(|| "-".into()),
                         flags.join(" "),
-                        if i["available"] == true { "yes".into() } else { i["unavailable_reason"].as_str().unwrap_or("no").chars().take(40).collect() },
+                        if i["available"] == true {
+                            "yes".into()
+                        } else {
+                            i["unavailable_reason"].as_str().unwrap_or("no").chars().take(40).collect()
+                        },
                     ]
                 })
                 .collect();
@@ -393,7 +410,12 @@ async fn run(cli: Cli) -> Result<()> {
             }
             let providers = api.get("/v1/providers").await?;
             let label_of = |id: &str| {
-                providers["accounts"].as_array().and_then(|a| a.iter().find(|x| x["id"] == id)).and_then(|x| x["label"].as_str()).unwrap_or(id).to_string()
+                providers["accounts"]
+                    .as_array()
+                    .and_then(|a| a.iter().find(|x| x["id"] == id))
+                    .and_then(|x| x["label"].as_str())
+                    .unwrap_or(id)
+                    .to_string()
             };
             let mut rows = Vec::new();
             for acc in v["accounts"].as_array().cloned().unwrap_or_default() {
@@ -404,10 +426,12 @@ async fn run(cli: Cli) -> Result<()> {
                     continue;
                 }
                 for w in windows {
-                    let used = w["used_percent"].as_f64().map(|p| format!("{p:.0}%")).or_else(|| match (w["limit"].as_f64(), w["remaining"].as_f64()) {
-                        (Some(l), Some(r)) => Some(format!("{}/{}", compact((l - r) as u64), compact(l as u64))),
-                        (None, Some(r)) => Some(format!("{r:.2} left")),
-                        _ => None,
+                    let used = w["used_percent"].as_f64().map(|p| format!("{p:.0}%")).or_else(|| {
+                        match (w["limit"].as_f64(), w["remaining"].as_f64()) {
+                            (Some(l), Some(r)) => Some(format!("{}/{}", compact((l - r) as u64), compact(l as u64))),
+                            (None, Some(r)) => Some(format!("{r:.2} left")),
+                            _ => None,
+                        }
                     });
                     rows.push(vec![
                         label.clone(),
@@ -459,13 +483,32 @@ async fn run(cli: Cli) -> Result<()> {
                 return print_json(&d);
             }
             let c = &d["classification"];
-            kv("task", &format!("{} ({} complexity)", c["task"].as_str().unwrap_or_default().replace('_', " "), c["complexity"].as_str().unwrap_or_default()));
+            kv(
+                "task",
+                &format!(
+                    "{} ({} complexity)",
+                    c["task"].as_str().unwrap_or_default().replace('_', " "),
+                    c["complexity"].as_str().unwrap_or_default()
+                ),
+            );
             kv("preset", &d["preset"].as_str().unwrap_or_default().replace('_', " "));
-            kv("tokens", &format!("~{} in, ~{} out (estimated)", compact(c["estimated_input_tokens"].as_u64().unwrap_or(0)), compact(c["estimated_output_tokens"].as_u64().unwrap_or(0))));
+            kv(
+                "tokens",
+                &format!(
+                    "~{} in, ~{} out (estimated)",
+                    compact(c["estimated_input_tokens"].as_u64().unwrap_or(0)),
+                    compact(c["estimated_output_tokens"].as_u64().unwrap_or(0))
+                ),
+            );
             println!();
             for (i, cand) in d["candidates"].as_array().cloned().unwrap_or_default().iter().enumerate() {
                 let marker = if i == 0 { "selected " } else { "fallback " };
-                println!("{}{}  {}", dim(marker), cand["model"]["display_name"].as_str().unwrap_or_default(), dim(&format!("{:.3}", cand["score"].as_f64().unwrap_or(0.0))));
+                println!(
+                    "{}{}  {}",
+                    dim(marker),
+                    cand["model"]["display_name"].as_str().unwrap_or_default(),
+                    dim(&format!("{:.3}", cand["score"].as_f64().unwrap_or(0.0)))
+                );
                 if i == 0 {
                     for r in cand["reasons"].as_array().cloned().unwrap_or_default() {
                         println!("           - {}", r.as_str().unwrap_or_default());
@@ -476,7 +519,12 @@ async fn run(cli: Cli) -> Result<()> {
             if !rejected.is_empty() {
                 println!();
                 for r in rejected.iter().take(8) {
-                    println!("{}{}: {}", dim("excluded "), r["display_name"].as_str().unwrap_or_default(), r["reason"].as_str().unwrap_or_default());
+                    println!(
+                        "{}{}: {}",
+                        dim("excluded "),
+                        r["display_name"].as_str().unwrap_or_default(),
+                        r["reason"].as_str().unwrap_or_default()
+                    );
                 }
             }
             Ok(())
@@ -486,7 +534,9 @@ async fn run(cli: Cli) -> Result<()> {
             let mut body = request_body(prompt_text(prompt)?, model, preset, task, system, !json_out);
             if let Some(cwd) = cwd {
                 let path = cwd.canonicalize()?;
-                if !path.is_dir() { bail!("--cwd must be a directory"); }
+                if !path.is_dir() {
+                    bail!("--cwd must be a directory");
+                }
                 body["agent"] = json!({ "working_dir": path, "allow_writes": allow_writes });
             }
             if json_out {
@@ -513,7 +563,10 @@ async fn run(cli: Cli) -> Result<()> {
                                 k["id"].as_str().unwrap_or_default().to_string(),
                                 k["name"].as_str().unwrap_or_default().to_string(),
                                 format!("{}…", k["prefix"].as_str().unwrap_or_default()),
-                                k["scopes"].as_array().map(|s| s.iter().filter_map(|x| x.as_str()).collect::<Vec<_>>().join(",")).unwrap_or_default(),
+                                k["scopes"]
+                                    .as_array()
+                                    .map(|s| s.iter().filter_map(|x| x.as_str()).collect::<Vec<_>>().join(","))
+                                    .unwrap_or_default(),
                                 k["last_used_at"].as_str().map(relative_time).unwrap_or_else(|| "never".into()),
                                 if k["revoked_at"].is_null() { "active".into() } else { "revoked".into() },
                             ]
@@ -563,7 +616,9 @@ async fn stream_run(api: &api::Api, body: &Value, verbose: bool) -> Result<()> {
     let mut ended_with_newline = true;
     while let Some(chunk) = stream.next().await {
         buf.extend_from_slice(&chunk?);
-        if buf.len() > 8 * 1024 * 1024 { bail!("SSE frame exceeds 8 MiB"); }
+        if buf.len() > 8 * 1024 * 1024 {
+            bail!("SSE frame exceeds 8 MiB");
+        }
         while let Some(pos) = buf.windows(2).position(|w| w == b"\n\n") {
             // Decode complete frames, preserving multibyte text across network chunks.
             let block = String::from_utf8(buf.drain(..pos + 2).collect())?;
@@ -578,14 +633,28 @@ async fn stream_run(api: &api::Api, body: &Value, verbose: bool) -> Result<()> {
             match ev["type"].as_str().unwrap_or_default() {
                 "started" => {
                     if verbose {
-                        eprintln!("{}", dim(&format!("→ {} · {}", ev["model"]["display_name"].as_str().unwrap_or_default(), ev["task"].as_str().unwrap_or_default().replace('_', " "))));
+                        eprintln!(
+                            "{}",
+                            dim(&format!(
+                                "→ {} · {}",
+                                ev["model"]["display_name"].as_str().unwrap_or_default(),
+                                ev["task"].as_str().unwrap_or_default().replace('_', " ")
+                            ))
+                        );
                         for r in ev["reasons"].as_array().cloned().unwrap_or_default() {
                             eprintln!("{}", dim(&format!("  - {}", r.as_str().unwrap_or_default())));
                         }
                     }
                 }
                 "routing_changed" => {
-                    eprintln!("{}", dim(&format!("↳ switched to {}: {}", ev["to"]["display_name"].as_str().unwrap_or_default(), ev["reason"].as_str().unwrap_or_default())));
+                    eprintln!(
+                        "{}",
+                        dim(&format!(
+                            "↳ switched to {}: {}",
+                            ev["to"]["display_name"].as_str().unwrap_or_default(),
+                            ev["reason"].as_str().unwrap_or_default()
+                        ))
+                    );
                 }
                 "text_delta" => {
                     let t = ev["text"].as_str().unwrap_or_default();
@@ -594,7 +663,14 @@ async fn stream_run(api: &api::Api, body: &Value, verbose: bool) -> Result<()> {
                     ended_with_newline = t.ends_with('\n');
                 }
                 "tool_call" => {
-                    eprintln!("{}", dim(&format!("[tool call] {} {}", ev["call"]["name"].as_str().unwrap_or_default(), ev["call"]["arguments"].as_str().unwrap_or_default())));
+                    eprintln!(
+                        "{}",
+                        dim(&format!(
+                            "[tool call] {} {}",
+                            ev["call"]["name"].as_str().unwrap_or_default(),
+                            ev["call"]["arguments"].as_str().unwrap_or_default()
+                        ))
+                    );
                 }
                 "completed" => {
                     if !ended_with_newline {
@@ -602,7 +678,10 @@ async fn stream_run(api: &api::Api, body: &Value, verbose: bool) -> Result<()> {
                     }
                     if verbose {
                         let r = &ev["result"];
-                        let cost = r["cost"]["usd"].as_f64().map(|c| format!(" · ${c:.4} {}", r["cost"]["provenance"].as_str().unwrap_or_default())).unwrap_or_default();
+                        let cost = r["cost"]["usd"]
+                            .as_f64()
+                            .map(|c| format!(" · ${c:.4} {}", r["cost"]["provenance"].as_str().unwrap_or_default()))
+                            .unwrap_or_default();
                         eprintln!(
                             "{}",
                             dim(&format!(

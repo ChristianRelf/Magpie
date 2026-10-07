@@ -218,12 +218,7 @@ impl ExecRequest {
     }
 
     pub fn last_user_text(&self) -> String {
-        self.messages
-            .iter()
-            .rev()
-            .find(|m| m.role == Role::User)
-            .map(|m| m.text_content())
-            .unwrap_or_default()
+        self.messages.iter().rev().find(|m| m.role == Role::User).map(|m| m.text_content()).unwrap_or_default()
     }
 
     pub fn has_images(&self) -> bool {
@@ -292,13 +287,7 @@ pub struct ProviderOutcome {
 
 impl Default for ProviderOutcome {
     fn default() -> Self {
-        Self {
-            finish_reason: FinishReason::Stop,
-            usage: TokenUsage::default(),
-            cost: None,
-            limits: vec![],
-            resolved_model: None,
-        }
+        Self { finish_reason: FinishReason::Stop, usage: TokenUsage::default(), cost: None, limits: vec![], resolved_model: None }
     }
 }
 

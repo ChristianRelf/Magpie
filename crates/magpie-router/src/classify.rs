@@ -4,25 +4,92 @@
 use magpie_core::*;
 
 const CODE_MARKERS: &[&str] = &[
-    "```", "fn ", "def ", "class ", "function ", "const ", "let ", "import ", "#include", "public static", "=> {",
-    "func ", "struct ", "impl ", "select * from", "<div", "package ", "console.log", "println!", ".rs", ".py", ".ts",
-    ".tsx", ".js", ".go", ".java", ".cpp", ".c:", "cargo ", "npm ", "pip ",
+    "```",
+    "fn ",
+    "def ",
+    "class ",
+    "function ",
+    "const ",
+    "let ",
+    "import ",
+    "#include",
+    "public static",
+    "=> {",
+    "func ",
+    "struct ",
+    "impl ",
+    "select * from",
+    "<div",
+    "package ",
+    "console.log",
+    "println!",
+    ".rs",
+    ".py",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".go",
+    ".java",
+    ".cpp",
+    ".c:",
+    "cargo ",
+    "npm ",
+    "pip ",
 ];
 const DEBUG_MARKERS: &[&str] = &[
-    "bug", "error", "fix", "debug", "traceback", "exception", "stack trace", "panic", "segfault", "crash", "failing",
-    "why does", "why is", "fails", "broken", "wrong output", "throws", "undefined behavior",
-    "doesn't work", "does not work", "not working", "unexpected", "undefined is not", "null pointer", "error[e",
+    "bug",
+    "error",
+    "fix",
+    "debug",
+    "traceback",
+    "exception",
+    "stack trace",
+    "panic",
+    "segfault",
+    "crash",
+    "failing",
+    "why does",
+    "why is",
+    "fails",
+    "broken",
+    "wrong output",
+    "throws",
+    "undefined behavior",
+    "doesn't work",
+    "does not work",
+    "not working",
+    "unexpected",
+    "undefined is not",
+    "null pointer",
+    "error[e",
 ];
-const REPO_MARKERS: &[&str] = &["repository", "repo ", "codebase", "code base", "monorepo", "across files", "multiple files", "project structure"];
+const REPO_MARKERS: &[&str] =
+    &["repository", "repo ", "codebase", "code base", "monorepo", "across files", "multiple files", "project structure"];
 const MATH_MARKERS: &[&str] = &[
-    "prove", "proof", "theorem", "integral", "derivative", "equation", "calculate", "probability", "lemma", "solve for",
-    "matrix", "eigen", "optimi", "combinator", "∫", "∑",
+    "prove",
+    "proof",
+    "theorem",
+    "integral",
+    "derivative",
+    "equation",
+    "calculate",
+    "probability",
+    "lemma",
+    "solve for",
+    "matrix",
+    "eigen",
+    "optimi",
+    "combinator",
+    "∫",
+    "∑",
 ];
 const SUMMARY_MARKERS: &[&str] = &["summarize", "summarise", "summary", "tl;dr", "tldr", "key points", "condense", "recap"];
-const PLAN_MARKERS: &[&str] = &["plan", "strategy", "roadmap", "design a", "architecture", "step-by-step", "trade-off", "tradeoff", "proposal"];
+const PLAN_MARKERS: &[&str] =
+    &["plan", "strategy", "roadmap", "design a", "architecture", "step-by-step", "trade-off", "tradeoff", "proposal"];
 const EXTRACT_MARKERS: &[&str] = &["extract", "parse", "as json", "into json", "fields", "structured", "table of", "csv"];
 const CODEGEN_MARKERS: &[&str] = &["write", "implement", "create", "generate", "refactor", "build", "add a", "convert"];
-const DEPTH_MARKERS: &[&str] = &["complex", "in depth", "in-depth", "thorough", "comprehensive", "carefully", "detailed", "rigorous", "edge cases"];
+const DEPTH_MARKERS: &[&str] =
+    &["complex", "in depth", "in-depth", "thorough", "comprehensive", "carefully", "detailed", "rigorous", "edge cases"];
 
 fn count(text: &str, markers: &[&str]) -> usize {
     markers.iter().filter(|m| text.contains(*m)).count()
@@ -73,7 +140,11 @@ pub fn classify(req: &ExecRequest) -> Classification {
         (TaskClass::DataExtraction, false)
     } else if est_input > 60_000 {
         signals.push(format!("~{}k input tokens", est_input / 1000));
-        if code >= 3 || repo > 0 { (TaskClass::RepositoryAnalysis, false) } else { (TaskClass::LargeContext, false) }
+        if code >= 3 || repo > 0 {
+            (TaskClass::RepositoryAnalysis, false)
+        } else {
+            (TaskClass::LargeContext, false)
+        }
     } else if repo > 0 || (req.agent.is_some() && code > 0) {
         (TaskClass::RepositoryAnalysis, false)
     } else if code > 0 && debug > 0 {
@@ -108,7 +179,8 @@ pub fn classify(req: &ExecRequest) -> Classification {
     {
         Complexity::High
     } else if task == TaskClass::SimpleQuestion
-        || (last.len() < 300 && !matches!(task, TaskClass::MathReasoning | TaskClass::Planning | TaskClass::Debugging | TaskClass::RepositoryAnalysis))
+        || (last.len() < 300
+            && !matches!(task, TaskClass::MathReasoning | TaskClass::Planning | TaskClass::Debugging | TaskClass::RepositoryAnalysis))
     {
         Complexity::Low
     } else {

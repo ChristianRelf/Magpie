@@ -54,10 +54,7 @@ impl Harness {
         let now = now();
         for w in windows {
             let period = w.resets_at.map(|r| r.timestamp().to_string()).unwrap_or_default();
-            let reset_text = w
-                .resets_at
-                .map(|r| format!(" Resets {}.", r.format("%a %H:%M UTC")))
-                .unwrap_or_default();
+            let reset_text = w.resets_at.map(|r| format!(" Resets {}.", r.format("%a %H:%M UTC"))).unwrap_or_default();
             match w.state_at(now, 0.8) {
                 LimitState::Approaching | LimitState::Limited if w.provenance != Provenance::Unavailable => {
                     let pct = w.used_fraction().map(|u| format!("{:.0}%", u * 100.0)).unwrap_or_default();
@@ -154,7 +151,8 @@ impl Harness {
 
     /// Poll a provider's limit endpoint now.
     pub async fn refresh_limits(&self, account_id: &str) -> HarnessResult<Vec<LimitWindow>> {
-        let adapter = self.adapter_for(account_id).ok_or_else(|| HarnessError::new(ErrorKind::Authentication, "Account is not connected"))?;
+        let adapter =
+            self.adapter_for(account_id).ok_or_else(|| HarnessError::new(ErrorKind::Authentication, "Account is not connected"))?;
         if adapter.supports_limit_polling() {
             let windows = adapter.fetch_limits().await?;
             self.apply_limits(account_id, windows);

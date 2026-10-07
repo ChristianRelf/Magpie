@@ -40,7 +40,12 @@ pub fn read_admin_token(paths: &Paths) -> Option<String> {
 }
 
 fn http() -> reqwest::Client {
-    reqwest::Client::builder().timeout(Duration::from_secs(3)).no_proxy().redirect(reqwest::redirect::Policy::none()).build().expect("http client")
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(3))
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .expect("http client")
 }
 
 /// Check whether a Magpie harness answers at `url`.
@@ -53,7 +58,9 @@ pub async fn probe(url: &str) -> Option<Health> {
 pub async fn discover(paths: &Paths) -> Option<Connection> {
     let mut info = read_runtime(paths)?;
     let url = reqwest::Url::parse(&info.url).ok()?;
-    if url.scheme() != "http" || !matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]")) { return None; }
+    if url.scheme() != "http" || !matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]")) {
+        return None;
+    }
     let health = probe(&info.url).await?;
     // Return an authenticated incompatible service so callers can explain the
     // mismatch instead of launching a competing process and timing out.
@@ -61,7 +68,9 @@ pub async fn discover(paths: &Paths) -> Option<Connection> {
     info.version = health.version;
     let token = read_admin_token(paths)?;
     let verified = http().get(format!("{}/v1/status", info.url)).bearer_auth(&token).send().await.ok()?;
-    if !verified.status().is_success() { return None; }
+    if !verified.status().is_success() {
+        return None;
+    }
     Some(Connection { url: info.url.clone(), token, info })
 }
 
@@ -107,7 +116,8 @@ pub async fn ensure_running(paths: &Paths, program: &Path, args: &[String], time
         return Ok(c);
     }
     let log = paths.logs_dir().join("harness.log");
-    spawn_detached(program, args, &log).map_err(|e| HarnessError::new(ErrorKind::LocalDependency, format!("Could not start the harness: {e}")))?;
+    spawn_detached(program, args, &log)
+        .map_err(|e| HarnessError::new(ErrorKind::LocalDependency, format!("Could not start the harness: {e}")))?;
     let deadline = tokio::time::Instant::now() + timeout;
     while tokio::time::Instant::now() < deadline {
         tokio::time::sleep(Duration::from_millis(150)).await;
@@ -115,20 +125,25 @@ pub async fn ensure_running(paths: &Paths, program: &Path, args: &[String], time
             return Ok(c);
         }
     }
-    Err(HarnessError::new(
-        ErrorKind::Timeout,
-        format!("The harness did not start in time. See {}", log.display()),
-    ))
+    Err(HarnessError::new(ErrorKind::Timeout, format!("The harness did not start in time. See {}", log.display())))
 }
 
 /// Ask the harness to stop and wait for it to exit.
 pub async fn stop(conn: &Connection) -> HarnessResult<()> {
-    let response = http().post(format!("{}/v1/admin/shutdown", conn.url)).bearer_auth(&conn.token).send().await
+    let response = http()
+        .post(format!("{}/v1/admin/shutdown", conn.url))
+        .bearer_auth(&conn.token)
+        .send()
+        .await
         .map_err(|_| HarnessError::internal("Could not contact the harness for shutdown"))?;
-    if !response.status().is_success() { return Err(HarnessError::internal("The harness rejected the shutdown request")); }
+    if !response.status().is_success() {
+        return Err(HarnessError::internal("The harness rejected the shutdown request"));
+    }
     for _ in 0..100 {
         tokio::time::sleep(Duration::from_millis(150)).await;
-        if probe(&conn.url).await.is_none() { return Ok(()); }
+        if probe(&conn.url).await.is_none() {
+            return Ok(());
+        }
     }
     // Never signal a PID from a stale runtime file: it may now belong to another process.
     Err(HarnessError::internal("The harness did not stop within 15 seconds"))
@@ -142,9 +157,8 @@ pub struct DaemonOptions {
 
 fn init_logging(diagnostic: bool) {
     let default = if diagnostic { "debug" } else { "info" };
-    let filter = tracing_subscriber::EnvFilter::try_from_env("MAGPIE_LOG").unwrap_or_else(|_| {
-        tracing_subscriber::EnvFilter::new(format!("{default},hyper=warn,reqwest=warn,h2=warn,rustls=warn"))
-    });
+    let filter = tracing_subscriber::EnvFilter::try_from_env("MAGPIE_LOG")
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(format!("{default},hyper=warn,reqwest=warn,h2=warn,rustls=warn")));
     let _ = tracing_subscriber::fmt().with_env_filter(filter).with_target(false).with_ansi(false).try_init();
 }
 
@@ -171,7 +185,11 @@ pub async fn run_daemon(opts: DaemonOptions) -> HarnessResult<()> {
     let backend = secrets.primary_backend();
 
     // Peek at settings for logging verbosity before the harness opens.
-    let diagnostic = magpie_store::Store::open(&paths.database()).ok().and_then(|s| s.settings().ok()).map(|s| s.security.diagnostic_logging).unwrap_or(false);
+    let diagnostic = magpie_store::Store::open(&paths.database())
+        .ok()
+        .and_then(|s| s.settings().ok())
+        .map(|s| s.security.diagnostic_logging)
+        .unwrap_or(false);
     init_logging(diagnostic);
     tracing::info!(version = VERSION, data = %paths.root.display(), secrets = backend.as_str(), "starting harness");
 

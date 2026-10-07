@@ -36,9 +36,7 @@ fn rejects_forced_tools(model: &str) -> bool {
 /// Models that accept `output_config.effort`.
 fn supports_effort(model: &str) -> bool {
     let m = model.to_ascii_lowercase();
-    ["fable", "mythos", "opus-5", "sonnet-5", "opus-4-5", "opus-4-6", "opus-4-7", "opus-4-8", "sonnet-4-6"]
-        .iter()
-        .any(|p| m.contains(p))
+    ["fable", "mythos", "opus-5", "sonnet-5", "opus-4-5", "opus-4-6", "opus-4-7", "opus-4-8", "sonnet-4-6"].iter().any(|p| m.contains(p))
 }
 
 impl AnthropicAdapter {
@@ -201,12 +199,8 @@ impl ProviderAdapter for AnthropicAdapter {
     }
 
     async fn verify(&self) -> HarnessResult<VerifiedIdentity> {
-        let resp = self
-            .req(reqwest::Method::GET, "/v1/models?limit=1")
-            .timeout(Duration::from_secs(20))
-            .send()
-            .await
-            .map_err(transport_error)?;
+        let resp =
+            self.req(reqwest::Method::GET, "/v1/models?limit=1").timeout(Duration::from_secs(20)).send().await.map_err(transport_error)?;
         if !resp.status().is_success() {
             return Err(error_from_response(resp).await);
         }
@@ -325,7 +319,11 @@ impl ProviderAdapter for AnthropicAdapter {
                     if block["type"] == "tool_use" {
                         tool_blocks.insert(
                             idx,
-                            (block["id"].as_str().unwrap_or_default().into(), block["name"].as_str().unwrap_or_default().into(), String::new()),
+                            (
+                                block["id"].as_str().unwrap_or_default().into(),
+                                block["name"].as_str().unwrap_or_default().into(),
+                                String::new(),
+                            ),
                         );
                     }
                 }
@@ -423,7 +421,13 @@ mod tests {
     }
 
     fn areq(model: &str, r: ExecRequest) -> AdapterRequest {
-        AdapterRequest { model_id: model.into(), request: r, default_max_output: 16000, timeout: Duration::from_secs(5), scratch_dir: std::env::temp_dir() }
+        AdapterRequest {
+            model_id: model.into(),
+            request: r,
+            default_max_output: 16000,
+            timeout: Duration::from_secs(5),
+            scratch_dir: std::env::temp_dir(),
+        }
     }
 
     #[test]
@@ -438,8 +442,18 @@ mod tests {
                 ToolCall { id: "t2".into(), name: "w".into(), arguments: r#"{"city":"Rome"}"#.into() },
             ],
         });
-        r.messages.push(Message { role: Role::Tool, content: vec![ContentPart::Text { text: "sunny".into() }], tool_call_id: Some("t1".into()), tool_calls: vec![] });
-        r.messages.push(Message { role: Role::Tool, content: vec![ContentPart::Text { text: "rain".into() }], tool_call_id: Some("t2".into()), tool_calls: vec![] });
+        r.messages.push(Message {
+            role: Role::Tool,
+            content: vec![ContentPart::Text { text: "sunny".into() }],
+            tool_call_id: Some("t1".into()),
+            tool_calls: vec![],
+        });
+        r.messages.push(Message {
+            role: Role::Tool,
+            content: vec![ContentPart::Text { text: "rain".into() }],
+            tool_call_id: Some("t2".into()),
+            tool_calls: vec![],
+        });
         let b = adapter().build_body(&areq("claude-sonnet-5", r));
         let msgs = b["messages"].as_array().unwrap();
         assert_eq!(msgs.len(), 3);
@@ -468,7 +482,8 @@ mod tests {
 
     #[test]
     fn usage_includes_cache_tokens() {
-        let u = usage_from(&json!({"input_tokens": 10, "cache_read_input_tokens": 100, "cache_creation_input_tokens": 5, "output_tokens": 3}));
+        let u =
+            usage_from(&json!({"input_tokens": 10, "cache_read_input_tokens": 100, "cache_creation_input_tokens": 5, "output_tokens": 3}));
         assert_eq!(u.input_tokens, Some(115));
         assert_eq!(u.cached_input_tokens, Some(100));
     }

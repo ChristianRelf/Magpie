@@ -46,7 +46,17 @@ pub fn enable(program: &Path, args: &[String]) -> HarnessResult<()> {
     {
         let cmdline = std::iter::once(quote(&prog)).chain(args.iter().map(|a| quote(a))).collect::<Vec<_>>().join(" ");
         let status = std::process::Command::new("reg")
-            .args(["add", r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run", "/v", "MagpieHarness", "/t", "REG_SZ", "/d", &cmdline, "/f"])
+            .args([
+                "add",
+                r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+                "/v",
+                "MagpieHarness",
+                "/t",
+                "REG_SZ",
+                "/d",
+                &cmdline,
+                "/f",
+            ])
             .status()
             .map_err(|e| HarnessError::internal(e.to_string()))?;
         return if status.success() { Ok(()) } else { Err(HarnessError::internal("Could not register login item")) };

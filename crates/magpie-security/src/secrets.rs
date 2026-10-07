@@ -75,9 +75,7 @@ impl KeyringSecretStore {
 
 impl SecretStore for KeyringSecretStore {
     fn set(&self, id: &str, secret: &str) -> Result<SecretBackend, SecretError> {
-        Self::entry(id)?
-            .set_password(secret)
-            .map_err(|e| SecretError::Backend(e.to_string()))?;
+        Self::entry(id)?.set_password(secret).map_err(|e| SecretError::Backend(e.to_string()))?;
         Ok(SecretBackend::Keyring)
     }
 
@@ -216,9 +214,12 @@ impl SystemSecretStore {
 impl SecretStore for SystemSecretStore {
     fn set(&self, id: &str, secret: &str) -> Result<SecretBackend, SecretError> {
         if let Some(k) = &self.keyring {
-            return k.set(id, secret).map_err(|_| SecretError::Unavailable(
-                "Unlock the operating system credential manager and try again. Magpie will not save this key to a plaintext file.".into()
-            ));
+            return k.set(id, secret).map_err(|_| {
+                SecretError::Unavailable(
+                    "Unlock the operating system credential manager and try again. Magpie will not save this key to a plaintext file."
+                        .into(),
+                )
+            });
         }
         self.file.set(id, secret)
     }
@@ -226,7 +227,9 @@ impl SecretStore for SystemSecretStore {
     fn get(&self, id: &str, backend: Option<SecretBackend>) -> Result<Option<String>, SecretError> {
         if let Some(k) = &self.keyring {
             if backend == Some(SecretBackend::File) {
-                return Err(SecretError::Unavailable("This account used a development plaintext store. Reconnect it to save the credential in your OS keyring.".into()));
+                return Err(SecretError::Unavailable(
+                    "This account used a development plaintext store. Reconnect it to save the credential in your OS keyring.".into(),
+                ));
             }
             return k.get(id, None);
         }
@@ -234,8 +237,12 @@ impl SecretStore for SystemSecretStore {
     }
 
     fn delete(&self, id: &str, backend: Option<SecretBackend>) -> Result<(), SecretError> {
-        if backend == Some(SecretBackend::File) { return self.file.delete(id, None); }
-        if let Some(k) = &self.keyring { return k.delete(id, None); }
+        if backend == Some(SecretBackend::File) {
+            return self.file.delete(id, None);
+        }
+        if let Some(k) = &self.keyring {
+            return k.delete(id, None);
+        }
         self.file.delete(id, None)
     }
 }

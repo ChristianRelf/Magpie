@@ -113,8 +113,7 @@ impl Pricing {
     pub fn cost(&self, input: u64, cached_input: u64, output: u64) -> f64 {
         let uncached = input.saturating_sub(cached_input) as f64;
         let cached_rate = self.cached_input_per_mtok.unwrap_or(self.input_per_mtok);
-        (uncached * self.input_per_mtok + cached_input as f64 * cached_rate + output as f64 * self.output_per_mtok)
-            / 1_000_000.0
+        (uncached * self.input_per_mtok + cached_input as f64 * cached_rate + output as f64 * self.output_per_mtok) / 1_000_000.0
     }
 }
 

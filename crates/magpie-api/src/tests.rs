@@ -26,7 +26,15 @@ impl Drop for Server {
 
 async fn server() -> Server {
     let dir = std::env::temp_dir().join(format!("magpie-api-test-{}", uuid::Uuid::new_v4().simple()));
-    let caps = Capabilities { streaming: true, tools: true, structured_output: true, vision: false, reasoning: false, agentic: false, system_prompt: true };
+    let caps = Capabilities {
+        streaming: true,
+        tools: true,
+        structured_output: true,
+        vision: false,
+        reasoning: false,
+        agentic: false,
+        system_prompt: true,
+    };
     let mock = Arc::new(MockAdapter::new(
         Account {
             id: "x".into(),
@@ -73,13 +81,7 @@ fn client() -> reqwest::Client {
 }
 
 async fn connect_mock(s: &Server) {
-    let r = client()
-        .post(format!("{}/v1/providers", s.url))
-        .bearer_auth(&s.admin)
-        .json(&json!({"kind": "ollama"}))
-        .send()
-        .await
-        .unwrap();
+    let r = client().post(format!("{}/v1/providers", s.url)).bearer_auth(&s.admin).json(&json!({"kind": "ollama"})).send().await.unwrap();
     assert_eq!(r.status(), 201, "{}", r.text().await.unwrap());
 }
 
@@ -188,13 +190,16 @@ async fn responses_endpoint_and_telemetry() {
     assert_eq!(r["routing"]["task"], "code_generation");
     let id = r["id"].as_str().unwrap().to_string();
 
-    let rec: Value = client().get(format!("{}/v1/executions/{id}", s.url)).bearer_auth(&s.admin).send().await.unwrap().json().await.unwrap();
+    let rec: Value =
+        client().get(format!("{}/v1/executions/{id}", s.url)).bearer_auth(&s.admin).send().await.unwrap().json().await.unwrap();
     assert_eq!(rec["status"], "succeeded");
     assert!(rec["routing"]["candidates"].as_array().unwrap().len() >= 1);
 
-    let sum: Value = client().get(format!("{}/v1/usage/summary?range=1h", s.url)).bearer_auth(&s.admin).send().await.unwrap().json().await.unwrap();
+    let sum: Value =
+        client().get(format!("{}/v1/usage/summary?range=1h", s.url)).bearer_auth(&s.admin).send().await.unwrap().json().await.unwrap();
     assert_eq!(sum["current"]["requests"], 1);
-    let ts: Value = client().get(format!("{}/v1/usage/timeseries?range=1h", s.url)).bearer_auth(&s.admin).send().await.unwrap().json().await.unwrap();
+    let ts: Value =
+        client().get(format!("{}/v1/usage/timeseries?range=1h", s.url)).bearer_auth(&s.admin).send().await.unwrap().json().await.unwrap();
     assert_eq!(ts["points"].as_array().unwrap().iter().map(|p| p["requests"].as_u64().unwrap()).sum::<u64>(), 1);
     assert!(ts["points"].as_array().unwrap().len() >= 60);
     let csv = client().get(format!("{}/v1/usage/export?range=1h", s.url)).bearer_auth(&s.admin).send().await.unwrap().text().await.unwrap();
@@ -257,12 +262,19 @@ async fn scoped_keys_are_enforced() {
 async fn errors_use_openai_shape_and_status_codes() {
     let s = server().await;
     // No providers: routing fails with 503 and a helpful message.
-    let r = client().post(format!("{}/v1/chat/completions", s.url)).bearer_auth(&s.admin).json(&json!({"messages": [{"role": "user", "content": "hi"}]})).send().await.unwrap();
+    let r = client()
+        .post(format!("{}/v1/chat/completions", s.url))
+        .bearer_auth(&s.admin)
+        .json(&json!({"messages": [{"role": "user", "content": "hi"}]}))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(r.status(), 503);
     let b: Value = r.json().await.unwrap();
     assert_eq!(b["error"]["type"], "no_eligible_model");
     // Bad input
-    let r = client().post(format!("{}/v1/chat/completions", s.url)).bearer_auth(&s.admin).json(&json!({"model": "auto"})).send().await.unwrap();
+    let r =
+        client().post(format!("{}/v1/chat/completions", s.url)).bearer_auth(&s.admin).json(&json!({"model": "auto"})).send().await.unwrap();
     assert_eq!(r.status(), 400);
     // Upstream rate limit surfaces as 429
     connect_mock(&s).await;
@@ -285,7 +297,8 @@ async fn settings_and_routing_roundtrip() {
     let r = client().put(format!("{}/v1/settings", s.url)).bearer_auth(&s.admin).json(&settings).send().await.unwrap();
     assert_eq!(r.status(), 400);
 
-    let mut routing: Value = client().get(format!("{}/v1/routing", s.url)).bearer_auth(&s.admin).send().await.unwrap().json().await.unwrap();
+    let mut routing: Value =
+        client().get(format!("{}/v1/routing", s.url)).bearer_auth(&s.admin).send().await.unwrap().json().await.unwrap();
     routing["preset"] = json!("fastest");
     let r = client().put(format!("{}/v1/routing", s.url)).bearer_auth(&s.admin).json(&routing).send().await.unwrap();
     assert_eq!(r.status(), 200);
@@ -296,8 +309,13 @@ async fn settings_and_routing_roundtrip() {
 async fn ordinary_execute_keys_cannot_start_filesystem_agents_or_cancel_others() {
     let s = server().await;
     let key = s.harness.create_client("limited", &["execute".into()]).unwrap();
-    let response = client().post(format!("{}/v1/responses", s.url)).bearer_auth(&key.token)
-        .json(&json!({"input":"inspect files", "agent":{"working_dir":"/tmp", "allow_writes":true}})).send().await.unwrap();
+    let response = client()
+        .post(format!("{}/v1/responses", s.url))
+        .bearer_auth(&key.token)
+        .json(&json!({"input":"inspect files", "agent":{"working_dir":"/tmp", "allow_writes":true}}))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(response.status(), 403);
     let response = client().post(format!("{}/v1/executions/another-client/cancel", s.url)).bearer_auth(&key.token).send().await.unwrap();
     assert_eq!(response.status(), 403);

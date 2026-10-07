@@ -51,12 +51,7 @@ pub trait ProviderAdapter: Send + Sync {
 
     /// Execute a request, streaming events to `events`. Implementations must
     /// stop promptly when `cancel` fires.
-    async fn execute(
-        &self,
-        req: &AdapterRequest,
-        events: EventSender,
-        cancel: CancellationToken,
-    ) -> HarnessResult<ProviderOutcome>;
+    async fn execute(&self, req: &AdapterRequest, events: EventSender, cancel: CancellationToken) -> HarnessResult<ProviderOutcome>;
 
     /// Fetch current limit/quota state from a dedicated, allowance-free
     /// endpoint. Returns an empty list when the provider exposes none.

@@ -37,7 +37,11 @@ impl FromRequestParts<AppState> for Auth {
 
     async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
         let token = token_from(parts).ok_or_else(ApiError::unauthorized)?;
-        state.harness.authenticate(&token).map(|p| Auth(p, !state.harness.settings().security.require_scopes)).ok_or_else(ApiError::unauthorized)
+        state
+            .harness
+            .authenticate(&token)
+            .map(|p| Auth(p, !state.harness.settings().security.require_scopes))
+            .ok_or_else(ApiError::unauthorized)
     }
 }
 
@@ -47,12 +51,7 @@ pub async fn host_guard(State(state): State<AppState>, req: Request<axum::body::
     if state.allow_network {
         return next.run(req).await;
     }
-    let host = req
-        .headers()
-        .get(header::HOST)
-        .and_then(|h| h.to_str().ok())
-        .or_else(|| req.uri().host())
-        .unwrap_or("");
+    let host = req.headers().get(header::HOST).and_then(|h| h.to_str().ok()).or_else(|| req.uri().host()).unwrap_or("");
     let name = if host.starts_with('[') {
         host.split(']').next().map(|s| format!("{s}]")).unwrap_or_default()
     } else {

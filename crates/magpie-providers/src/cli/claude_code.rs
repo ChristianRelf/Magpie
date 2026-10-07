@@ -29,7 +29,10 @@ impl ClaudeCodeAdapter {
     fn binary(&self) -> HarnessResult<PathBuf> {
         let override_path = self.account.options.get("cli_path").and_then(|v| v.as_str());
         find_binary("claude", override_path).ok_or_else(|| {
-            HarnessError::new(ErrorKind::LocalDependency, "Claude Code is not installed. Install it with: npm install -g @anthropic-ai/claude-code")
+            HarnessError::new(
+                ErrorKind::LocalDependency,
+                "Claude Code is not installed. Install it with: npm install -g @anthropic-ai/claude-code",
+            )
         })
     }
 
@@ -152,7 +155,10 @@ impl ProviderAdapter for ClaudeCodeAdapter {
         let v: Value = serde_json::from_str(out.stdout.trim()).map_err(|_| {
             HarnessError::new(
                 ErrorKind::LocalDependency,
-                format!("Unexpected output from `claude auth status`. Update Claude Code. {}", out.stderr.chars().take(200).collect::<String>()),
+                format!(
+                    "Unexpected output from `claude auth status`. Update Claude Code. {}",
+                    out.stderr.chars().take(200).collect::<String>()
+                ),
             )
         })?;
         if v["loggedIn"].as_bool() != Some(true) {
@@ -169,12 +175,7 @@ impl ProviderAdapter for ClaudeCodeAdapter {
             c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default()
         });
         let identity = v["email"].as_str().map(str::to_string).or_else(|| v["orgName"].as_str().map(str::to_string));
-        Ok(VerifiedIdentity {
-            identity,
-            plan,
-            billing_mode: Some(billing),
-            detail: Some(format!("Authenticated via {method}")),
-        })
+        Ok(VerifiedIdentity { identity, plan, billing_mode: Some(billing), detail: Some(format!("Authenticated via {method}")) })
     }
 
     async fn discover_models(&self) -> HarnessResult<Vec<DiscoveredModel>> {
@@ -317,7 +318,10 @@ impl ProviderAdapter for ClaudeCodeAdapter {
                     }
                     if v["is_error"].as_bool() == Some(true) || v["subtype"].as_str().map(|s| s.starts_with("error")).unwrap_or(false) {
                         let text = v["result"].as_str().map(str::to_string).unwrap_or_else(|| {
-                            v["errors"].as_array().map(|a| a.iter().filter_map(|e| e.as_str()).collect::<Vec<_>>().join("; ")).unwrap_or_default()
+                            v["errors"]
+                                .as_array()
+                                .map(|a| a.iter().filter_map(|e| e.as_str()).collect::<Vec<_>>().join("; "))
+                                .unwrap_or_default()
                         });
                         let mut e = classify_cli_failure(&text, None);
                         if e.kind == ErrorKind::QuotaExhausted {
@@ -420,7 +424,9 @@ mod tests {
 
     #[test]
     fn result_usage_includes_cache() {
-        let u = usage_from_result(&json!({"usage": {"input_tokens": 3, "cache_read_input_tokens": 1000, "cache_creation_input_tokens": 20, "output_tokens": 9}}));
+        let u = usage_from_result(
+            &json!({"usage": {"input_tokens": 3, "cache_read_input_tokens": 1000, "cache_creation_input_tokens": 20, "output_tokens": 9}}),
+        );
         assert_eq!(u.input_tokens, Some(1023));
         assert_eq!(u.provenance, Provenance::Reported);
     }
