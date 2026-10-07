@@ -1,0 +1,21 @@
+[package]
+name = "magpie-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+chrono = "0.4.45"
+magpie-core = { version = "0.1.0", path = "../magpie-core" }
+parking_lot = "0.12.5"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+serde = "1.0.229"
+serde_json = "1.0.151"
+thiserror = "2.0.21"
+tracing = "0.1.44"
+
+[dev-dependencies]
+tempfile = "3.27.0"

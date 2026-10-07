@@ -1,0 +1,423 @@
+//! Claude subscription access through the official Claude Code CLI
+//! (`claude -p`, the documented non-interactive mode).
+
+use std::path::PathBuf;
+use std::time::Duration;
+
+use async_trait::async_trait;
+use chrono::TimeZone;
+use magpie_core::*;
+use serde_json::Value;
+use tokio_util::sync::CancellationToken;
+
+use super::{classify_cli_failure, command, find_binary, flatten_prompt, run_capture, JsonlProcess};
+use crate::{catalog, emit, AdapterRequest, EventSender, ProviderAdapter};
+
+/// Environment variables that would silently switch Claude Code from the
+/// user's subscription to metered API billing.
+const BILLING_ENV: &[&str] = &["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"];
+
+pub struct ClaudeCodeAdapter {
+    account: Account,
+}
+
+impl ClaudeCodeAdapter {
+    pub fn new(account: Account) -> Self {
+        Self { account }
+    }
+
+    fn binary(&self) -> HarnessResult<PathBuf> {
+        let override_path = self.account.options.get("cli_path").and_then(|v| v.as_str());
+        find_binary("claude", override_path).ok_or_else(|| {
+            HarnessError::new(ErrorKind::LocalDependency, "Claude Code is not installed. Install it with: npm install -g @anthropic-ai/claude-code")
+        })
+    }
+
+    fn remove_env(&self) -> &'static [&'static str] {
+        // Only strip API-key variables for subscription accounts; a
+        // console-authenticated account is metered either way.
+        if self.account.billing_mode == BillingMode::Metered {
+            &[]
+        } else {
+            BILLING_ENV
+        }
+    }
+
+    pub(crate) fn build_args(&self, req: &AdapterRequest, system_file: Option<&str>) -> Vec<String> {
+        let r = &req.request;
+        let mut args: Vec<String> = [
+            "-p",
+            "--output-format",
+            "stream-json",
+            "--verbose",
+            "--include-partial-messages",
+            "--no-session-persistence",
+            "--strict-mcp-config",
+            "--model",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        args.push(req.model_id.clone());
+        if let Some(f) = system_file {
+            args.push("--system-prompt-file".into());
+            args.push(f.to_string());
+        }
+        match &r.agent {
+            Some(agent) if agent.allow_writes => {
+                args.extend(["--permission-mode".into(), "acceptEdits".into()]);
+            }
+            Some(_) => {
+                args.extend(["--tools".into(), "Read,Grep,Glob".into()]);
+            }
+            None => {
+                // Plain generation: no tools, no filesystem access.
+                args.extend(["--tools".into(), String::new()]);
+            }
+        }
+        if let Some(effort) = &r.reasoning_effort {
+            args.extend(["--effort".into(), effort.clone()]);
+        }
+        if let Some(ResponseFormat::JsonSchema { schema, .. }) = &r.response_format {
+            args.extend(["--json-schema".into(), schema.to_string()]);
+        }
+        args
+    }
+}
+
+/// Parse Claude Code's usage-limit error text (`...|<unix seconds>`).
+fn limit_reset_from_text(text: &str) -> Option<Timestamp> {
+    let ts = text.rsplit('|').next()?.trim().parse::<i64>().ok()?;
+    chrono::Utc.timestamp_opt(ts, 0).single()
+}
+
+fn usage_from_result(v: &Value) -> TokenUsage {
+    let u = &v["usage"];
+    let input = u["input_tokens"].as_u64();
+    let cache_read = u["cache_read_input_tokens"].as_u64();
+    let cache_write = u["cache_creation_input_tokens"].as_u64();
+    TokenUsage {
+        input_tokens: input.map(|i| i + cache_read.unwrap_or(0) + cache_write.unwrap_or(0)),
+        output_tokens: u["output_tokens"].as_u64(),
+        cached_input_tokens: cache_read,
+        cache_write_tokens: cache_write,
+        reasoning_tokens: None,
+        provenance: if input.is_some() { Provenance::Reported } else { Provenance::Unavailable },
+    }
+}
+
+/// Map a `rate_limit_event` to a limit window. The payload shape is
+/// tolerated loosely: fields that are absent are left unknown.
+pub(crate) fn limit_from_event(account_id: &str, v: &Value) -> Option<LimitWindow> {
+    let info = v.get("rate_limit_info").or_else(|| v.get("rateLimitInfo")).unwrap_or(v);
+    let kind = info["rateLimitType"].as_str().or_else(|| info["rate_limit_type"].as_str()).unwrap_or("subscription");
+    let status = info["status"].as_str().unwrap_or_default();
+    let resets = info["resetsAt"].as_i64().or_else(|| info["resets_at"].as_i64()).and_then(|t| {
+        let secs = if t > 10_000_000_000 { t / 1000 } else { t };
+        chrono::Utc.timestamp_opt(secs, 0).single()
+    });
+    let utilization = info["utilization"].as_f64();
+    let (label, window) = match kind {
+        "five_hour" => ("5-hour session".to_string(), Some(5 * 3600)),
+        "seven_day" => ("Weekly".to_string(), Some(7 * 86_400)),
+        "seven_day_opus" => ("Weekly (Opus)".to_string(), Some(7 * 86_400)),
+        "seven_day_sonnet" => ("Weekly (Sonnet)".to_string(), Some(7 * 86_400)),
+        other => (other.replace('_', " "), None),
+    };
+    let mut w = LimitWindow::new(account_id, &format!("claude.{kind}"), &label, LimitMetric::UsagePercent, Provenance::Reported);
+    w.window_secs = window;
+    w.resets_at = resets;
+    w.used_percent = utilization.map(|u| if u <= 1.0 { u * 100.0 } else { u });
+    w.exhausted = status == "rejected";
+    if w.used_percent.is_none() && status == "allowed_warning" {
+        // Provider signalled a warning without a figure: approaching.
+        w.used_percent = Some(80.0);
+        w.provenance = Provenance::Estimated;
+    }
+    (!status.is_empty() || resets.is_some() || utilization.is_some()).then_some(w)
+}
+
+#[async_trait]
+impl ProviderAdapter for ClaudeCodeAdapter {
+    fn account(&self) -> &Account {
+        &self.account
+    }
+
+    async fn verify(&self) -> HarnessResult<VerifiedIdentity> {
+        let bin = self.binary()?;
+        let out = run_capture(&bin, &["auth", "status", "--json"], self.remove_env(), Duration::from_secs(30), None).await?;
+        let v: Value = serde_json::from_str(out.stdout.trim()).map_err(|_| {
+            HarnessError::new(
+                ErrorKind::LocalDependency,
+                format!("Unexpected output from `claude auth status`. Update Claude Code. {}", out.stderr.chars().take(200).collect::<String>()),
+            )
+        })?;
+        if v["loggedIn"].as_bool() != Some(true) {
+            return Err(HarnessError::new(ErrorKind::Authentication, "Claude Code is not signed in. Run `claude auth login`."));
+        }
+        let method = v["authMethod"].as_str().unwrap_or_default();
+        let billing = match method {
+            "claude.ai" | "claudeai" | "oauth" => BillingMode::Subscription,
+            "" => BillingMode::Unknown,
+            _ => BillingMode::Metered,
+        };
+        let plan = v["subscriptionType"].as_str().map(|s| {
+            let mut c = s.chars();
+            c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default()
+        });
+        let identity = v["email"].as_str().map(str::to_string).or_else(|| v["orgName"].as_str().map(str::to_string));
+        Ok(VerifiedIdentity {
+            identity,
+            plan,
+            billing_mode: Some(billing),
+            detail: Some(format!("Authenticated via {method}")),
+        })
+    }
+
+    async fn discover_models(&self) -> HarnessResult<Vec<DiscoveredModel>> {
+        // Claude Code has no model listing command; it accepts aliases that
+        // always resolve to the latest model in each family. Availability
+        // depends on the plan and is confirmed on first use.
+        let mut out = Vec::new();
+        for (alias, name, desc) in [
+            ("fable", "Claude Fable (latest)", "Most capable model. Availability depends on plan."),
+            ("opus", "Claude Opus (latest)", "Frontier model for complex work."),
+            ("sonnet", "Claude Sonnet (latest)", "Balanced model for everyday coding and analysis."),
+            ("haiku", "Claude Haiku (latest)", "Fast model for simple tasks."),
+        ] {
+            let mut d = catalog::discovered_from_catalog("anthropic", alias, Some(name.to_string()));
+            d.description = Some(desc.to_string());
+            // Subscription usage is not billed per token.
+            d.pricing = None;
+            d.capabilities.tools = false;
+            d.capabilities.vision = false;
+            d.capabilities.agentic = true;
+            d.is_default = alias == "sonnet";
+            d.reasoning_efforts = ["low", "medium", "high", "xhigh", "max"].iter().map(|s| s.to_string()).collect();
+            out.push(d);
+        }
+        for extra in crate::extra_models(&self.account) {
+            let mut d = catalog::discovered_from_catalog("anthropic", &extra, None);
+            d.pricing = None;
+            d.capabilities.tools = false;
+            d.capabilities.vision = false;
+            d.capabilities.agentic = true;
+            out.push(d);
+        }
+        Ok(out)
+    }
+
+    async fn execute(&self, req: &AdapterRequest, events: EventSender, cancel: CancellationToken) -> HarnessResult<ProviderOutcome> {
+        let bin = self.binary()?;
+        let r = &req.request;
+        let cwd = match &r.agent {
+            Some(a) => PathBuf::from(&a.working_dir),
+            None => super::ensure_scratch(&req.scratch_dir),
+        };
+        if !cwd.is_dir() {
+            return Err(HarnessError::invalid(format!("Working directory does not exist: {}", cwd.display())));
+        }
+
+        // System prompt goes through a private temp file (avoids argv length
+        // limits and process-list exposure).
+        let mut system: Vec<String> = r.system.iter().cloned().collect();
+        system.extend(r.messages.iter().filter(|m| m.role == Role::System).map(|m| m.text_content()));
+        let system_file = if !system.is_empty() || r.agent.is_none() {
+            let text = if system.is_empty() {
+                "You are a helpful assistant. Respond directly to the user's request.".to_string()
+            } else {
+                system.join("\n\n")
+            };
+            let path = std::env::temp_dir().join(format!("magpie-sys-{}.txt", uuid::Uuid::new_v4().simple()));
+            magpie_security::secrets::write_private(&path, text.as_bytes())
+                .map_err(|e| HarnessError::internal(format!("could not write system prompt: {e}")))?;
+            Some(path)
+        } else {
+            None
+        };
+        struct Cleanup(Option<PathBuf>);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                if let Some(p) = &self.0 {
+                    let _ = std::fs::remove_file(p);
+                }
+            }
+        }
+        let _cleanup = Cleanup(system_file.clone());
+
+        let args = self.build_args(req, system_file.as_ref().and_then(|p| p.to_str()));
+        let mut cmd = command(&bin, self.remove_env());
+        cmd.args(&args).current_dir(&cwd);
+        let prompt = flatten_prompt(r, false);
+        let mut proc = JsonlProcess::spawn(cmd, Some(prompt)).await?;
+
+        let mut outcome = ProviderOutcome::default();
+        let mut streamed_text = false;
+        let mut final_text: Option<String> = None;
+        let mut result_error: Option<HarnessError> = None;
+        let idle = req.timeout.min(Duration::from_secs(600));
+        while let Some(v) = proc.next(&cancel, idle).await? {
+            match v["type"].as_str().unwrap_or_default() {
+                "system" => {
+                    if let Some(m) = v["model"].as_str() {
+                        outcome.resolved_model = Some(m.to_string());
+                        emit(&events, ProviderEvent::ResolvedModel(m.to_string())).await?;
+                    }
+                }
+                "stream_event" => {
+                    let e = &v["event"];
+                    if e["type"] == "content_block_delta" {
+                        let d = &e["delta"];
+                        match d["type"].as_str().unwrap_or_default() {
+                            "text_delta" => {
+                                if let Some(t) = d["text"].as_str() {
+                                    streamed_text = true;
+                                    emit(&events, ProviderEvent::TextDelta(t.to_string())).await?;
+                                }
+                            }
+                            "thinking_delta" => {
+                                if let Some(t) = d["thinking"].as_str().filter(|t| !t.is_empty()) {
+                                    emit(&events, ProviderEvent::ReasoningDelta(t.to_string())).await?;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                "assistant" => {
+                    // Fallback when partial messages are unavailable.
+                    if !streamed_text {
+                        for block in v["message"]["content"].as_array().cloned().unwrap_or_default() {
+                            if block["type"] == "text" {
+                                if let Some(t) = block["text"].as_str() {
+                                    final_text.get_or_insert_with(String::new).push_str(t);
+                                }
+                            }
+                        }
+                    }
+                }
+                "rate_limit_event" => {
+                    if let Some(w) = limit_from_event(&self.account.id, &v) {
+                        outcome.limits.push(w);
+                    }
+                }
+                "result" => {
+                    outcome.usage = usage_from_result(&v);
+                    if let Some(c) = v["total_cost_usd"].as_f64() {
+                        // Claude Code computes this locally at API list
+                        // prices; for subscriptions it is not a charge.
+                        outcome.cost = Some(Cost {
+                            usd: c,
+                            provenance: Provenance::Estimated,
+                            api_equivalent: self.account.billing_mode == BillingMode::Subscription,
+                        });
+                    }
+                    if v["is_error"].as_bool() == Some(true) || v["subtype"].as_str().map(|s| s.starts_with("error")).unwrap_or(false) {
+                        let text = v["result"].as_str().map(str::to_string).unwrap_or_else(|| {
+                            v["errors"].as_array().map(|a| a.iter().filter_map(|e| e.as_str()).collect::<Vec<_>>().join("; ")).unwrap_or_default()
+                        });
+                        let mut e = classify_cli_failure(&text, None);
+                        if e.kind == ErrorKind::QuotaExhausted {
+                            e.resets_at = limit_reset_from_text(&text);
+                        }
+                        result_error = Some(e);
+                    } else if !streamed_text {
+                        if let Some(s) = v.get("structured_output").filter(|s| !s.is_null()) {
+                            final_text = Some(s.to_string());
+                        } else if let Some(t) = v["result"].as_str() {
+                            final_text = Some(t.to_string());
+                        }
+                    }
+                    match v["stop_reason"].as_str() {
+                        Some("max_tokens") => outcome.finish_reason = FinishReason::Length,
+                        Some("refusal") => outcome.finish_reason = FinishReason::Refusal,
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+        }
+        let (code, stderr) = proc.finish().await;
+        if let Some(mut e) = result_error {
+            if e.resets_at.is_none() {
+                e.resets_at = outcome.limits.iter().filter(|l| l.exhausted).filter_map(|l| l.resets_at).min();
+            }
+            return Err(e);
+        }
+        if let Some(t) = final_text {
+            emit(&events, ProviderEvent::TextDelta(t)).await?;
+        } else if !streamed_text && code != Some(0) {
+            return Err(classify_cli_failure(&stderr, code));
+        }
+        Ok(outcome)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn adapter(billing: BillingMode) -> ClaudeCodeAdapter {
+        ClaudeCodeAdapter::new(Account {
+            id: "cc".into(),
+            kind: ProviderKind::ClaudeCode,
+            label: "Claude".into(),
+            auth_method: AuthMethod::CliDelegated,
+            billing_mode: billing,
+            billing_reported: true,
+            base_url: None,
+            identity: None,
+            plan: None,
+            status: ConnectionStatus::Connected,
+            status_message: None,
+            enabled: true,
+            last_verified_at: None,
+            created_at: now(),
+            has_secret: false,
+            secret_store: None,
+            options: json!({}),
+        })
+    }
+
+    #[test]
+    fn args_disable_tools_without_agent_mode() {
+        let a = adapter(BillingMode::Subscription);
+        let req = AdapterRequest {
+            model_id: "sonnet".into(),
+            request: ExecRequest::simple("hi"),
+            default_max_output: 1000,
+            timeout: Duration::from_secs(10),
+            scratch_dir: std::env::temp_dir(),
+        };
+        let args = a.build_args(&req, Some("/tmp/sys.txt"));
+        let tools_idx = args.iter().position(|a| a == "--tools").unwrap();
+        assert_eq!(args[tools_idx + 1], "");
+        assert!(args.contains(&"--no-session-persistence".to_string()));
+        assert!(args.windows(2).any(|w| w[0] == "--model" && w[1] == "sonnet"));
+        // Subscription accounts strip API-key env vars.
+        assert_eq!(a.remove_env(), BILLING_ENV);
+        assert!(adapter(BillingMode::Metered).remove_env().is_empty());
+    }
+
+    #[test]
+    fn parses_limit_events_and_reset_text() {
+        let w = limit_from_event(
+            "cc",
+            &json!({"type":"rate_limit_event","rate_limit_info":{"status":"rejected","resetsAt":1900000000,"rateLimitType":"five_hour"}}),
+        )
+        .unwrap();
+        assert!(w.exhausted);
+        assert_eq!(w.window_secs, Some(18000));
+        assert_eq!(w.resets_at.unwrap().timestamp(), 1900000000);
+        assert_eq!(limit_reset_from_text("Claude AI usage limit reached|1900000000").unwrap().timestamp(), 1900000000);
+        assert!(limit_from_event("cc", &json!({"type":"rate_limit_event"})).is_none());
+    }
+
+    #[test]
+    fn result_usage_includes_cache() {
+        let u = usage_from_result(&json!({"usage": {"input_tokens": 3, "cache_read_input_tokens": 1000, "cache_creation_input_tokens": 20, "output_tokens": 9}}));
+        assert_eq!(u.input_tokens, Some(1023));
+        assert_eq!(u.provenance, Provenance::Reported);
+    }
+}

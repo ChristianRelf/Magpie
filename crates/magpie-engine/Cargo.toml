@@ -1,0 +1,31 @@
+[package]
+name = "magpie-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+async-trait = "0.1.92"
+chrono = "0.4.45"
+dirs = "7.0.0"
+futures = "0.3.34"
+magpie-core = { version = "0.1.0", path = "../magpie-core" }
+magpie-providers = { version = "0.1.0", path = "../magpie-providers" }
+magpie-router = { version = "0.1.0", path = "../magpie-router" }
+magpie-security = { version = "0.1.0", path = "../magpie-security" }
+magpie-store = { version = "0.1.0", path = "../magpie-store" }
+parking_lot = "0.12.5"
+serde = "1.0.229"
+serde_json = "1.0.151"
+thiserror = "2.0.21"
+tokio = { version = "1.53.2", features = ["full"] }
+tokio-util = "0.7.19"
+tracing = "0.1.44"
+uuid = "1.20.0"
+
+[dev-dependencies]
+magpie-providers = { path = "../magpie-providers", features = ["testing"] }
+uuid = { version = "1.20.0", features = ["v4"] }

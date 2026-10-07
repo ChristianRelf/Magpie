@@ -1,0 +1,15 @@
+{
+  "name": "magpie-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.34.5",
+  "scripts": {
+    "dev": "pnpm --filter @magpie/desktop tauri dev",
+    "build": "pnpm --filter @magpie/desktop tauri build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

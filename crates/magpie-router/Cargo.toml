@@ -1,0 +1,17 @@
+[package]
+name = "magpie-router"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+magpie-core = { version = "0.1.0", path = "../magpie-core" }
+serde = "1.0.229"
+serde_json = "1.0.151"
+tracing = "0.1.44"
+
+[dev-dependencies]
+chrono = "0.4.45"
