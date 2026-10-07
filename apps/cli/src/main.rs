@@ -92,6 +92,12 @@ enum Command {
     /// to read the prompt from standard input.
     Run {
         prompt: Vec<String>,
+        /// Authorise an official CLI agent to access this working directory.
+        #[arg(long)]
+        cwd: Option<std::path::PathBuf>,
+        /// Permit agent file edits (requires --cwd).
+        #[arg(long, requires = "cwd")]
+        allow_writes: bool,
         #[arg(long, short)]
         model: Option<String>,
         #[arg(long, short)]
@@ -119,7 +125,7 @@ enum Command {
 enum KeysAction {
     /// List keys.
     List,
-    /// Create a key. Scopes: execute, read, admin.
+    /// Create a key. Scopes: execute, read, agent, admin.
     Create {
         name: String,
         #[arg(long = "scope", default_values_t = ["execute".to_string(), "read".to_string()])]
@@ -193,6 +199,12 @@ async fn run(cli: Cli) -> Result<()> {
             Ok(())
         }
         Command::Stop => {
+            if std::env::var_os("MAGPIE_API_KEY").is_some() {
+                let api = api::connect(true).await?;
+                api.post("/v1/admin/shutdown", &json!({})).await?;
+                println!("Shutdown requested");
+                return Ok(());
+            }
             let paths = Paths::resolve();
             match magpie_runtime::discover(&paths).await {
                 Some(c) => {
@@ -204,6 +216,9 @@ async fn run(cli: Cli) -> Result<()> {
             Ok(())
         }
         Command::Restart => {
+            if std::env::var_os("MAGPIE_API_KEY").is_some() {
+                bail!("Restart requires the local owner session; remove MAGPIE_API_KEY to use owner credentials");
+            }
             let paths = Paths::resolve();
             if let Some(c) = magpie_runtime::discover(&paths).await {
                 magpie_runtime::stop(&c).await.map_err(|e| anyhow!(e.message))?;
@@ -466,9 +481,14 @@ async fn run(cli: Cli) -> Result<()> {
             }
             Ok(())
         }
-        Command::Run { prompt, model, preset, task, system, verbose } => {
+        Command::Run { prompt, model, preset, task, system, verbose, cwd, allow_writes } => {
             let api = api::connect(cli.no_start).await?;
-            let body = request_body(prompt_text(prompt)?, model, preset, task, system, !json_out);
+            let mut body = request_body(prompt_text(prompt)?, model, preset, task, system, !json_out);
+            if let Some(cwd) = cwd {
+                let path = cwd.canonicalize()?;
+                if !path.is_dir() { bail!("--cwd must be a directory"); }
+                body["agent"] = json!({ "working_dir": path, "allow_writes": allow_writes });
+            }
             if json_out {
                 let r = api.post("/v1/responses", &body).await?;
                 return print_json(&r);
@@ -538,13 +558,15 @@ async fn stream_run(api: &api::Api, body: &Value, verbose: bool) -> Result<()> {
         bail!("{}", v["error"]["message"].as_str().unwrap_or("request failed"));
     }
     let mut stream = resp.bytes_stream();
-    let mut buf = String::new();
+    let mut buf = Vec::<u8>::new();
     let mut out = std::io::stdout();
     let mut ended_with_newline = true;
     while let Some(chunk) = stream.next().await {
-        buf.push_str(&String::from_utf8_lossy(&chunk?));
-        while let Some(pos) = buf.find("\n\n") {
-            let block: String = buf.drain(..pos + 2).collect();
+        buf.extend_from_slice(&chunk?);
+        if buf.len() > 8 * 1024 * 1024 { bail!("SSE frame exceeds 8 MiB"); }
+        while let Some(pos) = buf.windows(2).position(|w| w == b"\n\n") {
+            // Decode complete frames, preserving multibyte text across network chunks.
+            let block = String::from_utf8(buf.drain(..pos + 2).collect())?;
             let data: String = block.lines().filter_map(|l| l.strip_prefix("data:")).map(|l| l.trim_start()).collect::<Vec<_>>().join("\n");
             if data.is_empty() {
                 continue;

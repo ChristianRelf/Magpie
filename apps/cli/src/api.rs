@@ -17,7 +17,7 @@ impl Api {
         Self {
             url: conn.url.clone(),
             token: conn.token.clone(),
-            http: reqwest::Client::builder().no_proxy().connect_timeout(Duration::from_secs(5)).build().expect("http client"),
+            http: reqwest::Client::builder().no_proxy().redirect(reqwest::redirect::Policy::none()).connect_timeout(Duration::from_secs(5)).build().expect("http client"),
         }
     }
 
@@ -54,9 +54,19 @@ impl Api {
 
 /// Connect to the harness, starting it on demand unless `no_start`.
 pub async fn connect(no_start: bool) -> Result<Api> {
+    if let Ok(token) = std::env::var("MAGPIE_API_KEY") {
+        if token.trim().is_empty() { bail!("MAGPIE_API_KEY is empty"); }
+        let url = std::env::var("MAGPIE_URL").unwrap_or_else(|_| "http://127.0.0.1:7878".into());
+        let parsed = reqwest::Url::parse(&url).context("invalid MAGPIE_URL")?;
+        if parsed.scheme() != "http" || !matches!(parsed.host_str(), Some("127.0.0.1" | "localhost" | "[::1]")) {
+            bail!("MAGPIE_URL must be a loopback HTTP endpoint");
+        }
+        return Ok(Api { url: url.trim_end_matches('/').into(), token,
+            http: reqwest::Client::builder().no_proxy().redirect(reqwest::redirect::Policy::none()).connect_timeout(Duration::from_secs(5)).build()? });
+    }
     let paths = Paths::resolve();
     if let Some(c) = magpie_runtime::discover(&paths).await {
-        check_version(&c);
+        check_version(&c)?;
         return Ok(Api::new(&c));
     }
     if no_start {
@@ -67,15 +77,17 @@ pub async fn connect(no_start: bool) -> Result<Api> {
     let c = magpie_runtime::ensure_running(&paths, &exe, &["serve".into()], Duration::from_secs(15))
         .await
         .map_err(|e| anyhow!(e.message))?;
+    check_version(&c)?;
     Ok(Api::new(&c))
 }
 
-fn check_version(c: &Connection) {
+fn check_version(c: &Connection) -> Result<()> {
     if c.info.api_version != magpie_core::API_VERSION {
-        eprintln!(
-            "warning: running harness speaks API v{} (this CLI expects v{}). Run `magpie restart`.",
+        bail!(
+            "Running harness speaks API v{} (this CLI expects v{}). Run `magpie restart`.",
             c.info.api_version,
             magpie_core::API_VERSION
         );
     }
+    Ok(())
 }

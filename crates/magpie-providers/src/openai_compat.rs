@@ -328,6 +328,10 @@ impl ProviderAdapter for OpenAiCompatAdapter {
             if !catalog::is_text_model(id) {
                 continue;
             }
+            // OpenAI Codex models require Responses, not Chat Completions.
+            if self.account.kind == ProviderKind::OpenAi && id.contains("codex") {
+                continue;
+            }
             if m["active"] == Value::Bool(false) {
                 continue;
             }

@@ -15,6 +15,8 @@ pub enum Scope {
     Execute,
     /// Read models, usage, limits and status.
     Read,
+    /// Permit local CLI agent filesystem workflows.
+    Agent,
     /// Manage providers, settings and keys.
     Admin,
 }
@@ -25,6 +27,7 @@ impl Scope {
             Scope::Execute => "execute",
             Scope::Read => "read",
             Scope::Admin => "admin",
+            Scope::Agent => "agent",
         }
     }
 
@@ -33,6 +36,7 @@ impl Scope {
             "execute" => Some(Scope::Execute),
             "read" => Some(Scope::Read),
             "admin" => Some(Scope::Admin),
+            "agent" => Some(Scope::Agent),
             _ => None,
         }
     }

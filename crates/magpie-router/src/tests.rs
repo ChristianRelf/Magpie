@@ -45,6 +45,19 @@ fn inventory() -> Vec<ModelInfo> {
     ]
 }
 
+#[test]
+fn filesystem_cli_requires_explicit_agent_context() {
+    let mut models = inventory();
+    models[0].provider = ProviderKind::CodexCli;
+    models[0].model.capabilities.agentic = true;
+    let mut req = ExecRequest::simple("Summarise a repository");
+    let decision = run(&req, &models, &RoutingConfig::default(), &[]).unwrap();
+    assert!(decision.rejected.iter().any(|r| r.model_key == models[0].key && r.reason.contains("explicit agent")));
+    req.agent = Some(AgentOptions { working_dir: "/workspace".into(), allow_writes: false });
+    let decision = run(&req, &models, &RoutingConfig::default(), &[]).unwrap();
+    assert_eq!(decision.selected().unwrap().model.provider, ProviderKind::CodexCli);
+}
+
 fn run(req: &ExecRequest, models: &[ModelInfo], cfg: &RoutingConfig, limits: &[LimitWindow]) -> HarnessResult<RoutingDecision> {
     let history = HashMap::new();
     route(&RouteInput { request: req, models, config: cfg, limits, history: &history, now: now() })

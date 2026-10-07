@@ -162,6 +162,12 @@ pub fn route(input: &RouteInput) -> HarnessResult<RoutingDecision> {
             reject(format!("Lacks {}", m.model.capabilities.missing(&cl.required).join(", ")), &mut rejected);
             continue;
         }
+        // These CLIs expose built-in filesystem tools and user configuration.
+        // A scratch cwd alone is not an isolation boundary for plain generation.
+        if matches!(m.provider, ProviderKind::CodexCli | ProviderKind::GeminiCli) && req.agent.is_none() {
+            reject("Requires an explicit agent working directory and agent permission".into(), &mut rejected);
+            continue;
+        }
         if let Some(ctx) = m.model.context_window {
             if needed_context > ctx {
                 reject(format!("Context window too small ({} available, ~{} needed)", fmt_tokens(ctx), fmt_tokens(needed_context)), &mut rejected);

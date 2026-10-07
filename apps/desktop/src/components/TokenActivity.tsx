@@ -11,6 +11,7 @@ import {
 import { Panel, PanelHeader } from "./ui/core";
 import { Segmented } from "./ui/controls";
 import { QueryState } from "./QueryState";
+import { useNow } from "./LimitWindows";
 import { useTimeseries } from "@/lib/queries";
 import { compact, integer } from "@/lib/format";
 import { buildTokenActivity, type ActivityCell } from "@/lib/token-activity";
@@ -22,6 +23,7 @@ const shades = [
   "var(--fg-muted)",
   "var(--fg)",
 ];
+const monthFormat = new Intl.DateTimeFormat(undefined, { month: "short", timeZone: "UTC" });
 function CellShape(props: {
   cx?: number;
   cy?: number;
@@ -70,7 +72,7 @@ export function TokenActivity({
   onSelectRange?: (from: number, to: number) => void;
 }) {
   const [mode, setMode] = useState<"daily" | "weekly" | "cumulative">("daily");
-  const [anchor] = useState(() => Date.now());
+  const anchor = useNow();
   const [chartWidth, setChartWidth] = useState(800);
   const end = Math.floor(anchor / 86_400_000) * 86_400_000;
   const start = end - 364 * 86_400_000;
@@ -97,10 +99,7 @@ export function TokenActivity({
         .filter((c) => new Date(c.t).getUTCDate() <= 7)
         .map((c) => [
           c.week,
-          new Date(c.t).toLocaleDateString(undefined, {
-            month: "short",
-            timeZone: "UTC",
-          }),
+          monthFormat.format(c.t),
         ]),
     ).entries(),
   ].filter((_, i, all) => i === 0 || all[i - 1][1] !== all[i][1]);

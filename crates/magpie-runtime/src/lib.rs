@@ -51,11 +51,14 @@ pub async fn probe(url: &str) -> Option<Health> {
 
 /// Find a running, healthy harness for this data directory.
 pub async fn discover(paths: &Paths) -> Option<Connection> {
-    let info = read_runtime(paths)?;
+    let mut info = read_runtime(paths)?;
     let url = reqwest::Url::parse(&info.url).ok()?;
     if url.scheme() != "http" || !matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]")) { return None; }
     let health = probe(&info.url).await?;
-    if health.api_version != API_VERSION { return None; }
+    // Return an authenticated incompatible service so callers can explain the
+    // mismatch instead of launching a competing process and timing out.
+    info.api_version = health.api_version;
+    info.version = health.version;
     let token = read_admin_token(paths)?;
     let verified = http().get(format!("{}/v1/status", info.url)).bearer_auth(&token).send().await.ok()?;
     if !verified.status().is_success() { return None; }

@@ -1,0 +1,5 @@
+fn main() {
+    println!("cargo:rerun-if-env-changed=MAGPIE_UPDATE_PUBLIC_KEY");
+    println!("cargo:rerun-if-env-changed=MAGPIE_UPDATE_URL");
+    tauri_build::build()
+}

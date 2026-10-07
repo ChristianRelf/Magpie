@@ -59,6 +59,9 @@ impl ClaudeCodeAdapter {
         .map(|s| s.to_string())
         .collect();
         args.push(req.model_id.clone());
+        // Do not execute repository/user hooks during delegated requests.
+        // Provider-managed policy still takes precedence, as required by the CLI.
+        args.extend(["--settings".into(), r#"{"disableAllHooks":true}"#.into()]);
         if let Some(f) = system_file {
             args.push("--system-prompt-file".into());
             args.push(f.to_string());
@@ -394,6 +397,7 @@ mod tests {
         let tools_idx = args.iter().position(|a| a == "--tools").unwrap();
         assert_eq!(args[tools_idx + 1], "");
         assert!(args.contains(&"--no-session-persistence".to_string()));
+        assert!(args.windows(2).any(|w| w[0] == "--settings" && w[1] == r#"{"disableAllHooks":true}"#));
         assert!(args.windows(2).any(|w| w[0] == "--model" && w[1] == "sonnet"));
         // Subscription accounts strip API-key env vars.
         assert_eq!(a.remove_env(), BILLING_ENV);

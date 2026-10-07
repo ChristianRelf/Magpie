@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Local Magpie window permissions. No remote web content receives IPC access.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "notification:default",
+    { "identifier": "opener:allow-open-url", "allow": [{ "url": "https://*" }] },
+    "opener:allow-reveal-item-in-dir"
+  ]
+}

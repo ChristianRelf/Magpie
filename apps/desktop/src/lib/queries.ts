@@ -9,8 +9,7 @@ function useReady() {
 }
 
 export function useStatus() {
-  const interval =
-    (useSettings().data?.settings.analytics.refresh_interval_secs ?? 5) * 1000;
+  const interval = (useSettings().data?.settings.analytics.refresh_interval_secs ?? 5) * 1000;
   const { client, enabled } = useReady();
   return useQuery({
     queryKey: ["status"],
@@ -59,9 +58,7 @@ export function useUsageSummary(q: RangeQuery) {
   });
 }
 
-export function useTimeseries(
-  q: RangeQuery & { group_by?: GroupBy; bucket_ms?: number },
-) {
+export function useTimeseries(q: RangeQuery & { group_by?: GroupBy; bucket_ms?: number }) {
   const { client, enabled } = useReady();
   return useQuery({
     queryKey: ["usage", "timeseries", q],
@@ -110,8 +107,7 @@ export function useExecution(id: string | null) {
 }
 
 export function useActive() {
-  const interval =
-    (useSettings().data?.settings.analytics.refresh_interval_secs ?? 5) * 1000;
+  const interval = (useSettings().data?.settings.analytics.refresh_interval_secs ?? 5) * 1000;
   const { client, enabled } = useReady();
   return useQuery({
     queryKey: ["active"],
@@ -157,12 +153,12 @@ export function useNotifications() {
   });
 }
 
-export function useClis() {
+export function useClis(open = true) {
   const { client, enabled } = useReady();
   return useQuery({
     queryKey: ["clis"],
     queryFn: () => client.detectClis(),
-    enabled,
+    enabled: enabled && open,
     staleTime: 10_000,
   });
 }

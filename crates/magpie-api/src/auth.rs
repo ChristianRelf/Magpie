@@ -10,11 +10,11 @@ use crate::AppState;
 
 /// Authenticated caller, resolved from `Authorization: Bearer <key>` or
 /// `x-api-key: <key>` (for Anthropic-style clients).
-pub struct Auth(pub Principal);
+pub struct Auth(pub Principal, bool);
 
 impl Auth {
     pub fn require(&self, scope: Scope) -> Result<(), ApiError> {
-        if self.0.has(scope) {
+        if self.0.has(scope) || (scope == Scope::Read && self.1) {
             Ok(())
         } else {
             Err(ApiError::forbidden(scope.as_str()))
@@ -37,7 +37,7 @@ impl FromRequestParts<AppState> for Auth {
 
     async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
         let token = token_from(parts).ok_or_else(ApiError::unauthorized)?;
-        state.harness.authenticate(&token).map(Auth).ok_or_else(ApiError::unauthorized)
+        state.harness.authenticate(&token).map(|p| Auth(p, !state.harness.settings().security.require_scopes)).ok_or_else(ApiError::unauthorized)
     }
 }
 

@@ -1,16 +1,7 @@
 import { useState } from "react";
 import { Copy, KeyRound, Plus, Terminal, Shield } from "lucide-react";
 import { Page } from "@/components/Page";
-import {
-  Badge,
-  Button,
-  EmptyState,
-  Field,
-  Input,
-  Mono,
-  Panel,
-  PanelHeader,
-} from "@/components/ui/core";
+import { Badge, Button, EmptyState, Field, Input, Mono, Panel, PanelHeader } from "@/components/ui/core";
 import { Dialog, Select } from "@/components/ui/controls";
 import { QueryState } from "@/components/QueryState";
 import { useKeys } from "@/lib/queries";
@@ -32,9 +23,7 @@ function CodeBlock({ code }: { code: string }) {
       >
         Copy
       </Button>
-      <pre className="overflow-x-auto pr-14 font-mono text-[11.5px] leading-relaxed text-fg-muted">
-        {code}
-      </pre>
+      <pre className="overflow-x-auto pr-14 font-mono text-[11.5px] leading-relaxed text-fg-muted">{code}</pre>
     </div>
   );
 }
@@ -61,37 +50,25 @@ export function Integrations() {
       title="Integrations"
       subtitle="Give your tools one local endpoint"
       actions={
-        <Button
-          variant="primary"
-          icon={<Plus className="size-3.5" />}
-          onClick={() => setCreate(true)}
-        >
+        <Button variant="primary" icon={<Plus className="size-3.5" />} onClick={() => setCreate(true)}>
           Create access key
         </Button>
       }
     >
       <div className="mx-auto max-w-5xl space-y-5 p-5">
         <Panel>
-          <PanelHeader
-            title="Local API"
-            actions={
-              <Badge>Authenticated · API v{connection?.api_version ?? 1}</Badge>
-            }
-          />
+          <PanelHeader title="Local API" actions={<Badge>Authenticated · API v{connection?.api_version ?? 1}</Badge>} />
           <div className="flex items-center gap-3 p-4">
             <Terminal className="size-5 text-fg-subtle" />
             <div className="flex-1">
               <Mono>{url}/v1</Mono>
               <p className="mt-1 text-xs text-fg-subtle">
-                For tools that support a custom endpoint. Use a separate,
-                revocable key for each integration.
+                For tools that support a custom endpoint. Use a separate, revocable key for each integration.
               </p>
             </div>
             <Button
               icon={<Copy className="size-3" />}
-              onClick={() =>
-                void action.run(() => copyText(`${url}/v1`), "Endpoint copied")
-              }
+              onClick={() => void action.run(() => copyText(`${url}/v1`), "Endpoint copied")}
             >
               Copy
             </Button>
@@ -102,11 +79,7 @@ export function Integrations() {
             title="Access keys"
             subtitle="Secret keys are shown once. Only hashes are retained by the harness."
           />
-          <QueryState
-            pending={query.isLoading}
-            error={query.error}
-            retry={query.refetch}
-          />
+          <QueryState pending={query.isLoading} error={query.error} retry={query.refetch} />
           {!query.data?.keys.length && query.isSuccess && (
             <EmptyState
               icon={<KeyRound />}
@@ -120,9 +93,7 @@ export function Integrations() {
                 <Shield className="size-4 text-fg-subtle" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="truncate text-[13px] font-medium">
-                      {key.name}
-                    </span>
+                    <span className="truncate text-[13px] font-medium">{key.name}</span>
                     {key.revoked_at && <Badge>Revoked</Badge>}
                   </div>
                   <p className="mt-1 font-mono text-2xs text-fg-subtle">
@@ -131,17 +102,9 @@ export function Integrations() {
                 </div>
                 <div className="text-right text-2xs text-fg-subtle">
                   <p>Created {dateTime(key.created_at)}</p>
-                  <p>
-                    {key.last_used_at
-                      ? `Used ${relative(key.last_used_at)}`
-                      : "Never used"}
-                  </p>
+                  <p>{key.last_used_at ? `Used ${relative(key.last_used_at)}` : "Never used"}</p>
                 </div>
-                <Button
-                  variant="ghost"
-                  disabled={!!key.revoked_at}
-                  onClick={() => setRevoke(key.id)}
-                >
+                <Button variant="ghost" disabled={!!key.revoked_at} onClick={() => setRevoke(key.id)}>
                   Revoke
                 </Button>
               </div>
@@ -169,10 +132,8 @@ export function Integrations() {
           <div className="space-y-3 p-4">
             <CodeBlock code={examples[example]} />
             <p className="text-xs text-fg-subtle">
-              Replace the key in your application's environment. Magpie's native
-              /v1/responses uses Magpie event types; it is not the OpenAI
-              Responses wire protocol. The TypeScript SDK source is included in
-              this workspace.
+              Replace the key in your application's environment. Magpie's native /v1/responses uses Magpie event types;
+              it is not the OpenAI Responses wire protocol. The TypeScript SDK source is included in this workspace.
             </p>
           </div>
         </Panel>
@@ -200,10 +161,7 @@ export function Integrations() {
               onClick={() =>
                 void action.run(
                   async () => {
-                    const result = await client!.createKey(
-                      name.trim(),
-                      access.split(","),
-                    );
+                    const result = await client!.createKey(name.trim(), access.split(","));
                     setToken(result.token);
                     setCreate(false);
                     setName("");
@@ -237,9 +195,16 @@ export function Integrations() {
                 { value: "execute,read", label: "Execute and read telemetry" },
                 { value: "execute", label: "Execute only" },
                 { value: "read", label: "Read telemetry only" },
+                { value: "execute,read,agent", label: "Agent access (local files and execution)" },
               ]}
             />
           </Field>
+          {access.includes("agent") && (
+            <p className="text-xs text-fg-muted">
+              Agent access permits official CLIs to read local files and, when requested, modify them. Grant this only
+              to trusted applications. Working directories are not filesystem sandboxes.
+            </p>
+          )}
         </div>
       </Dialog>
       <Dialog
@@ -247,19 +212,13 @@ export function Integrations() {
         onOpenChange={(o) => !o && setToken(null)}
         title="Save your access key"
         description="This key will not be displayed again. Store it in the consuming application's secret store."
-        footer={
-          <Button onClick={() => setToken(null)}>I have saved the key</Button>
-        }
+        footer={<Button onClick={() => setToken(null)}>I have saved the key</Button>}
       >
         <div className="space-y-3">
-          <code className="selectable block break-all rounded-md border border-border bg-bg p-3 text-xs">
-            {token}
-          </code>
+          <code className="selectable block break-all rounded-md border border-border bg-bg p-3 text-xs">{token}</code>
           <Button
             icon={<Copy className="size-3" />}
-            onClick={() =>
-              void action.run(() => copyText(token!), "Key copied")
-            }
+            onClick={() => void action.run(() => copyText(token!), "Key copied")}
           >
             Copy key
           </Button>
@@ -292,9 +251,7 @@ export function Integrations() {
           </>
         }
       >
-        <p className="text-xs text-fg-muted">
-          Create a new key to reconnect this application later.
-        </p>
+        <p className="text-xs text-fg-muted">Create a new key to reconnect this application later.</p>
       </Dialog>
     </Page>
   );

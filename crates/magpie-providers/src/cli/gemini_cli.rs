@@ -16,8 +16,6 @@ use tokio_util::sync::CancellationToken;
 use super::{classify_cli_failure, command, find_binary, flatten_prompt, JsonlProcess};
 use crate::{catalog, emit, AdapterRequest, EventSender, ProviderAdapter};
 
-const MAX_ARG_PROMPT: usize = 100_000;
-
 pub struct GeminiCliAdapter {
     account: Account,
 }
@@ -115,6 +113,9 @@ impl ProviderAdapter for GeminiCliAdapter {
     async fn execute(&self, req: &AdapterRequest, events: EventSender, cancel: CancellationToken) -> HarnessResult<ProviderOutcome> {
         let bin = self.binary()?;
         let r = &req.request;
+        if r.agent.is_none() {
+            return Err(HarnessError::invalid("Gemini CLI execution requires explicit agent options. Use Gemini API for isolated text generation."));
+        }
         let cwd = match &r.agent {
             Some(a) => PathBuf::from(&a.working_dir),
             None => super::ensure_scratch(&req.scratch_dir),
@@ -123,16 +124,15 @@ impl ProviderAdapter for GeminiCliAdapter {
         let mut args: Vec<String> = vec!["--output-format".into(), "stream-json".into(), "-m".into(), req.model_id.clone()];
         match &r.agent {
             Some(a) if a.allow_writes => args.extend(["--approval-mode".into(), "auto_edit".into()]),
-            _ => {}
+            _ => args.extend(["--approval-mode".into(), "plan".into()]),
         }
-        let stdin = if prompt.len() <= MAX_ARG_PROMPT {
-            args.extend(["-p".into(), prompt]);
-            None
-        } else {
-            args.extend(["-p".into(), "Follow the instructions and conversation provided above.".into()]);
-            Some(prompt)
-        };
-        let mut cmd = command(&bin, &[]);
+        // Prompts go through stdin, never the operating system's process list.
+        args.extend(["-p".into(), "Follow the instructions and conversation provided above.".into()]);
+        let stdin = Some(prompt);
+        let remove_env: &[&str] = if self.account.billing_mode == BillingMode::Subscription {
+            &["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_USE_VERTEXAI"]
+        } else { &[] };
+        let mut cmd = command(&bin, remove_env);
         cmd.args(&args).current_dir(&cwd);
         let mut proc = JsonlProcess::spawn(cmd, stdin).await?;
         let mut outcome = ProviderOutcome::default();

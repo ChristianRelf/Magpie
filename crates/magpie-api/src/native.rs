@@ -68,6 +68,7 @@ fn response_json(result: &ExecResult, routing: Option<(TaskClass, Vec<String>)>,
 pub async fn responses(State(s): State<AppState>, auth: Auth, Json(body): Json<ResponsesBody>) -> ApiResult<Response> {
     auth.require(Scope::Execute)?;
     let req = body.into_request()?;
+    if req.agent.is_some() { auth.require(Scope::Agent)?; }
     let stream = req.stream;
     let client = auth.0.name();
     if !stream {
@@ -386,7 +387,9 @@ pub async fn get_execution(State(s): State<AppState>, auth: Auth, Path(id): Path
 }
 
 pub async fn cancel_execution(State(s): State<AppState>, auth: Auth, Path(id): Path<String>) -> ApiResult<Json<Value>> {
-    auth.require(Scope::Execute)?;
+    // Administrative cancellation by ID prevents one client cancelling another.
+    // Scoped clients cancel their own requests by closing the response stream.
+    auth.require(Scope::Admin)?;
     if !s.harness.cancel(&id) {
         return Err(ApiError::not_found("Active execution"));
     }

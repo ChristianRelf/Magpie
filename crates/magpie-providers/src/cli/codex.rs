@@ -400,6 +400,9 @@ impl ProviderAdapter for CodexAdapter {
 
     async fn execute(&self, req: &AdapterRequest, events: EventSender, cancel: CancellationToken) -> HarnessResult<ProviderOutcome> {
         let r = &req.request;
+        if r.agent.is_none() {
+            return Err(HarnessError::invalid("Codex execution requires explicit agent options. Use an API provider for isolated text generation."));
+        }
         let server = self.server().await?;
         server.active.fetch_add(1, Ordering::SeqCst);
         struct Active(Arc<AppServer>);

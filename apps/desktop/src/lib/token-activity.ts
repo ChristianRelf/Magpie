@@ -8,6 +8,9 @@ export interface ActivityCell {
   label: string;
 }
 const DAY = 86_400_000;
+const dateFormat = new Intl.DateTimeFormat(undefined, {
+  day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
+});
 /** UTC day buckets match SQLite telemetry. Missing days are local zero activity. */
 export function buildTokenActivity(
   points: TimeseriesPoint[],
@@ -38,12 +41,7 @@ export function buildTokenActivity(
     const day = byDay.get(t) ?? { tokens: 0, requests: 0 };
     const week = Math.floor((t - gridStart) / (7 * DAY));
     cumulative += day.tokens;
-    const date = new Date(t).toLocaleDateString(undefined, {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      timeZone: "UTC",
-    });
+    const date = dateFormat.format(t);
     result.push({
       t,
       week,

@@ -107,6 +107,7 @@ pub async fn chat_completions(State(s): State<AppState>, auth: Auth, Json(body):
         agent: ext.agent,
         metadata: body.get("metadata").cloned(),
     };
+    if req.agent.is_some() { auth.require(Scope::Agent)?; }
     let client = auth.0.name();
     let created = now().timestamp();
 

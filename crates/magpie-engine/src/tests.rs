@@ -381,3 +381,24 @@ fn bind_validation() {
     assert!(validate_bind("0.0.0.0", true).is_ok());
     assert!(validate_bind("localhost", false).is_err());
 }
+
+#[tokio::test]
+async fn failed_autostart_does_not_persist_success() {
+    let f = fixture().await;
+    let before = f.h.settings();
+    let mut changed = before.clone();
+    changed.general.launch_on_startup = true;
+    assert!(f.h.update_settings(changed).is_err());
+    assert_eq!(f.h.settings(), before);
+    assert_eq!(f.h.store.settings().unwrap(), before);
+}
+
+#[tokio::test]
+async fn invalid_server_settings_are_rejected_without_mutation() {
+    let f = fixture().await;
+    let before = f.h.settings();
+    let mut changed = before.clone();
+    changed.server.max_concurrency = 0;
+    assert!(f.h.update_settings(changed).is_err());
+    assert_eq!(f.h.settings(), before);
+}

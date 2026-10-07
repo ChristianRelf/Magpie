@@ -1,21 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  ArrowLeft,
-  Copy,
-  ExternalLink,
-  Eye,
-  EyeOff,
-  RefreshCw,
-  ShieldCheck,
-  Terminal,
-} from "lucide-react";
-import type {
-  BillingMode,
-  CliStatus,
-  ProviderDescriptor,
-  ProviderKind,
-} from "@magpie/sdk";
+import { ArrowLeft, Copy, ExternalLink, Eye, EyeOff, RefreshCw, ShieldCheck, Terminal } from "lucide-react";
+import type { BillingMode, CliStatus, ProviderDescriptor, ProviderKind } from "@magpie/sdk";
 import { Button, Field, Input, cn } from "@/components/ui/core";
 import { Dialog, Select } from "@/components/ui/controls";
 import { ProviderMark } from "@/components/ui/marks";
@@ -33,15 +19,7 @@ const GROUPS: { title: string; note: string; kinds: ProviderKind[] }[] = [
   {
     title: "API keys",
     note: "Metered usage billed by the provider",
-    kinds: [
-      "anthropic",
-      "openai",
-      "gemini",
-      "open_router",
-      "groq",
-      "mistral",
-      "deep_seek",
-    ],
+    kinds: ["anthropic", "openai", "gemini", "open_router", "groq", "mistral", "deep_seek"],
   },
   {
     title: "Local and custom",
@@ -54,18 +32,12 @@ function CopyLine({ text }: { text: string }) {
   const toast = useToast();
   return (
     <div className="flex items-center gap-2 rounded-md border border-border-strong bg-bg py-1 pr-1 pl-2.5">
-      <code className="min-w-0 flex-1 truncate font-mono text-[12px] text-fg">
-        {text}
-      </code>
+      <code className="min-w-0 flex-1 truncate font-mono text-[12px] text-fg">{text}</code>
       <Button
         size="xs"
         variant="ghost"
         icon={<Copy className="size-3" />}
-        onClick={() =>
-          void copyText(text).then(() =>
-            toast({ title: "Copied", tone: "success" }),
-          )
-        }
+        onClick={() => void copyText(text).then(() => toast({ title: "Copied", tone: "success" }))}
       >
         Copy
       </Button>
@@ -89,19 +61,12 @@ function CliSetup({
     return (
       <div className="space-y-3">
         <div className="rounded-lg border border-border bg-bg-subtle p-3 text-xs text-fg-muted">
-          {d.name} needs the official{" "}
-          <span className="font-mono text-fg">{d.cli_binary}</span> command-line
-          tool. Install it with its supported distribution method, then check
-          again.
+          {d.name} needs the official <span className="font-mono text-fg">{d.cli_binary}</span> command-line tool.
+          Install it with its supported distribution method, then check again.
         </div>
         {d.cli_install && <CopyLine text={d.cli_install} />}
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            icon={<RefreshCw className="size-3.5" />}
-            loading={checking}
-            onClick={onRecheck}
-          >
+          <Button variant="outline" icon={<RefreshCw className="size-3.5" />} loading={checking} onClick={onRecheck}>
             Check again
           </Button>
           <Button
@@ -126,18 +91,11 @@ function CliSetup({
       </div>
       <div className="rounded-lg border border-border bg-bg-subtle p-3 text-xs leading-relaxed text-fg-muted">
         The CLI signs in directly with{" "}
-        {d.vendor === "anthropic"
-          ? "Anthropic"
-          : d.vendor === "openai"
-            ? "OpenAI"
-            : "Google"}
-        . Magpie never sees your password or tokens; it runs the official CLI on
-        your behalf and respects your plan's usage limits.
+        {d.vendor === "anthropic" ? "Anthropic" : d.vendor === "openai" ? "OpenAI" : "Google"}. Magpie never sees your
+        password or tokens; it runs the official CLI on your behalf and respects your plan's usage limits.
       </div>
       <div>
-        <div className="mb-1.5 text-xs font-medium text-fg-muted">
-          If you are not signed in yet
-        </div>
+        <div className="mb-1.5 text-xs font-medium text-fg-muted">If you are not signed in yet</div>
         {d.cli_login && <CopyLine text={d.cli_login} />}
         {isTauri && (
           <Button
@@ -162,18 +120,12 @@ function CliSetup({
   );
 }
 
-export function ConnectDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-}) {
+export function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { client } = useHarness();
   const qc = useQueryClient();
   const toast = useToast();
   const providers = useProviders().data;
-  const clis = useClis();
+  const clis = useClis(open);
   const [kind, setKind] = useState<ProviderKind | null>(null);
   const [label, setLabel] = useState("");
   const [key, setKey] = useState("");
@@ -192,14 +144,9 @@ export function ConnectDialog({
     }
   }, [open]);
 
-  const descriptors = useMemo(
-    () => new Map((providers?.kinds ?? []).map((k) => [k.kind, k])),
-    [providers],
-  );
+  const descriptors = useMemo(() => new Map((providers?.kinds ?? []).map((k) => [k.kind, k])), [providers]);
   const d = kind ? descriptors.get(kind) : undefined;
-  const connectedKinds = new Set(
-    (providers?.accounts ?? []).map((a) => a.kind),
-  );
+  const connectedKinds = new Set((providers?.accounts ?? []).map((a) => a.kind));
   const cliFor = (k: ProviderKind) => clis.data?.clis.find((c) => c.kind === k);
 
   const choose = (k: ProviderKind) => {
@@ -245,8 +192,7 @@ export function ConnectDialog({
     }
   };
 
-  const needsKey =
-    d?.auth_method === "api_key" && d.kind !== "open_ai_compatible";
+  const needsKey = d?.auth_method === "api_key" && d.kind !== "open_ai_compatible";
   const canSubmit =
     !!d &&
     (!needsKey || key.trim().length > 8) &&
@@ -274,27 +220,15 @@ export function ConnectDialog({
           "Connect a provider"
         )
       }
-      description={
-        d
-          ? d.summary
-          : "Use the AI accounts you already have. Credentials stay on this device."
-      }
+      description={d ? d.summary : "Use the AI accounts you already have. Credentials stay on this device."}
       footer={
         d ? (
           <>
             <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              size="md"
-              loading={busy}
-              disabled={!canSubmit}
-              onClick={() => void submit()}
-            >
-              {d.auth_method === "cli_delegated"
-                ? "Verify and connect"
-                : "Connect"}
+            <Button variant="primary" size="md" loading={busy} disabled={!canSubmit} onClick={() => void submit()}>
+              {d.auth_method === "cli_delegated" ? "Verify and connect" : "Connect"}
             </Button>
           </>
         ) : undefined
@@ -323,9 +257,7 @@ export function ConnectDialog({
                     >
                       <ProviderMark kind={k} size={26} />
                       <div className="min-w-0">
-                        <div className="truncate text-[12.5px] font-medium">
-                          {desc.name}
-                        </div>
+                        <div className="truncate text-[12.5px] font-medium">{desc.name}</div>
                         <div className="truncate text-2xs text-fg-subtle">
                           {taken
                             ? "Connected"
@@ -354,22 +286,19 @@ export function ConnectDialog({
             <div className="text-xs text-fg-muted">{d.summary}</div>
           </div>
           {d.auth_method === "cli_delegated" && (
-            <CliSetup
-              d={d}
-              cli={cliFor(d.kind)}
-              checking={clis.isFetching}
-              onRecheck={() => void clis.refetch()}
-            />
+            <CliSetup d={d} cli={cliFor(d.kind)} checking={clis.isFetching} onRecheck={() => void clis.refetch()} />
+          )}
+          {(d.kind === "codex_cli" || d.kind === "gemini_cli") && (
+            <p className="text-xs text-fg-muted">
+              This CLI runs agent tasks with an explicit working directory. Integrations need agent permission; use API
+              authentication for plain text generation without local file access.
+            </p>
           )}
           {d.auth_method !== "cli_delegated" && (
             <div className="space-y-3">
               {d.auth_method === "api_key" && (
                 <Field
-                  label={
-                    d.kind === "open_ai_compatible"
-                      ? "API key (optional)"
-                      : "API key"
-                  }
+                  label={d.kind === "open_ai_compatible" ? "API key (optional)" : "API key"}
                   hint={
                     d.key_url ? (
                       <button
@@ -400,11 +329,7 @@ export function ConnectDialog({
                       className="absolute top-1/2 right-2 -translate-y-1/2 text-fg-subtle hover:text-fg"
                       aria-label={showKey ? "Hide key" : "Show key"}
                     >
-                      {showKey ? (
-                        <EyeOff className="size-3.5" />
-                      ) : (
-                        <Eye className="size-3.5" />
-                      )}
+                      {showKey ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
                     </button>
                   </div>
                 </Field>
@@ -428,10 +353,7 @@ export function ConnectDialog({
                 />
               </Field>
               {d.kind === "open_ai_compatible" && (
-                <Field
-                  label="Billing"
-                  hint="Determines whether routing treats this endpoint as billable."
-                >
+                <Field label="Billing" hint="Determines whether routing treats this endpoint as billable.">
                   <Select
                     label="Billing"
                     value={billing}
@@ -447,30 +369,19 @@ export function ConnectDialog({
                   />
                 </Field>
               )}
-              {d.default_billing === "metered" ||
-              d.default_billing === "credits" ? (
+              {d.default_billing === "metered" || d.default_billing === "credits" ? (
                 <p className="text-2xs text-fg-subtle">
-                  Requests routed to this account are billed by the provider.
-                  Automatic fallback from subscriptions to billable APIs stays
-                  off unless you enable it in Routing.
+                  Requests routed to this account are billed by the provider. Automatic fallback from subscriptions to
+                  billable APIs stays off unless you enable it in Routing.
                 </p>
               ) : null}
             </div>
           )}
           <Field label="Name" hint="Shown throughout Magpie.">
-            <Input
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder={d.name}
-              maxLength={80}
-            />
+            <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={d.name} maxLength={80} />
           </Field>
           {error && (
-            <div
-              className={cn(
-                "rounded-md border border-border-strong bg-surface-2 px-3 py-2 text-xs text-fg",
-              )}
-            >
+            <div className={cn("rounded-md border border-border-strong bg-surface-2 px-3 py-2 text-xs text-fg")}>
               {error}
             </div>
           )}

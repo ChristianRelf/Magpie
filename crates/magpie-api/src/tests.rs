@@ -291,3 +291,27 @@ async fn settings_and_routing_roundtrip() {
     assert_eq!(r.status(), 200);
     assert_eq!(s.harness.routing_config().preset, RoutingPreset::Fastest);
 }
+
+#[tokio::test]
+async fn ordinary_execute_keys_cannot_start_filesystem_agents_or_cancel_others() {
+    let s = server().await;
+    let key = s.harness.create_client("limited", &["execute".into()]).unwrap();
+    let response = client().post(format!("{}/v1/responses", s.url)).bearer_auth(&key.token)
+        .json(&json!({"input":"inspect files", "agent":{"working_dir":"/tmp", "allow_writes":true}})).send().await.unwrap();
+    assert_eq!(response.status(), 403);
+    let response = client().post(format!("{}/v1/executions/another-client/cancel", s.url)).bearer_auth(&key.token).send().await.unwrap();
+    assert_eq!(response.status(), 403);
+}
+
+#[tokio::test]
+async fn disabling_read_scopes_never_disables_authentication() {
+    let s = server().await;
+    let key = s.harness.create_client("execute-only", &["execute".into()]).unwrap();
+    let url = format!("{}/v1/limits", s.url);
+    assert_eq!(client().get(&url).bearer_auth(&key.token).send().await.unwrap().status(), 403);
+    let mut settings = s.harness.settings();
+    settings.security.require_scopes = false;
+    s.harness.update_settings(settings).unwrap();
+    assert_eq!(client().get(&url).bearer_auth(&key.token).send().await.unwrap().status(), 200);
+    assert_eq!(client().get(&url).send().await.unwrap().status(), 401);
+}
