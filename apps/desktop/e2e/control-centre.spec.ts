@@ -13,6 +13,15 @@ test("first run, real local provider, execution, telemetry, settings and key rev
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /One harness/ })).toBeVisible();
   await page.getByRole("button", { name: "Connect provider", exact: true }).click();
+  // Use real descriptors so a wire-name mismatch cannot silently hide a provider.
+  const { kinds } = await (await request.get(`${url}/v1/providers`, { headers })).json();
+  const picker = page.getByRole("dialog", { name: "Connect a provider", exact: true });
+  for (const provider of kinds) {
+    await expect(picker.getByText(provider.name, { exact: true })).toBeVisible();
+  }
+  await picker.getByRole("button", { name: /^OpenAI API/ }).click();
+  await expect(page.getByRole("dialog", { name: /Connect OpenAI API$/ })).toBeVisible();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
   await page.getByRole("button", { name: /OpenAI-compatible/ }).click();
   await page.getByLabel("Base URL", { exact: true }).fill("http://127.0.0.1:17879/v1");
   await page.getByRole("combobox", { name: "Billing" }).click();
