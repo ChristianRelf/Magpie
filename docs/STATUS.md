@@ -12,25 +12,32 @@ Updated 2026-10-08. Implemented code and verified release behaviour are recorded
 - Native Tauri shell, tray menu, detached daemon mode, start/stop/restart, login assistance, native exports, per-user login startup registration and optional signed updater.
 - API keys use the OS credential manager in production and fail closed when unavailable. Development plaintext storage is debug-only.
 - Qualitative provider limit warnings no longer invent a percentage. Reservations use only reported, unexpired allowances.
+- Provider HTTP clients reject redirects so custom authentication headers cannot be forwarded to a different endpoint.
 - Explicit agent scope for local filesystem workflows; Codex/Gemini agent execution requires an explicit working directory. Integration keys cannot cancel another client's execution by ID.
 - README, API/SDK examples, architecture, security, provider limitations, release guide, dependency update configuration and installer/check workflows.
 
-## Verified in this workspace
+## Verified behaviour
 
-- **103 Rust tests passed**, covering API authentication/scopes, adapter conversion, route selection, fallback, usage/costs, limits, secret storage, persistence/migrations and engine error cases; includes two native command tests.
+- **104 Rust tests passed on final Linux CI**, covering API authentication/scopes, adapter conversion, route selection, fallback, usage/costs, limits, secret storage, persistence/migrations and engine error cases; includes two native command tests. The local full workspace run passed 103 tests before the final redirect regression was added.
 - The provider suite also passed its new redirect regression (26 provider tests): custom authentication headers cannot follow HTTP redirects to another endpoint.
 - TypeScript typecheck and Vite production build passed. Four SDK streaming tests passed; SDK build and pack completed.
 - Three calendar aggregation tests passed. One run timed out under concurrent native compilation; date formatting was changed to reuse formatters, and the rerun passed.
 - Playwright passed an isolated end-to-end browser flow using the real Rust harness and an explicitly identified local HTTP fixture: onboarding, connect/discovery, execution and telemetry, every screen, calendar modes, favourites, execution details, routing persistence, key restrictions/revocation and settings after reload.
 - Actual Linux Tauri/WebKit window launched under Xvfb with an isolated D-Bus session. UI-to-harness connection worked; default close stopped the service; the background opt-in preserved it after UI exit. Screenshot inspected. Initial headless runs stalled on the host's missing desktop portal; the isolated bus resolved the test environment issue.
-- Linux `.deb` and AppImage were built. The quota-corrected Linux rebuild completed; the final redirect safeguard is being included in release artifacts.
+- Final Linux `.deb`, AppImage and standalone CLI builds completed from `493c3db`, including the quota-provenance and redirect corrections.
+- The final AppImage passed authenticated lifecycle checks with the final release CLI: scoped access, durable settings across restart, duplicate-process protection and graceful shutdown without a display. Delivery packages and SHA-256 checksums are available in `/srv/codex/cache/magpie/delivery` on the build machine.
 - JavaScript production dependency audit: no known vulnerabilities. Rust audit completed with two informational transitive GTK findings; see SECURITY.md. Do not describe the Rust audit as clean.
 - Commits are pushed to `origin/main` as requested. No live provider calls, paid execution, signing/notarisation or public release have been claimed.
 
+## Cross-platform verification
+
+- [Initial installer matrix](https://github.com/ChristianRelf/Magpie/actions/runs/37704353609): Linux x64, Windows x64, Apple Silicon and Intel macOS passed native installer builds, Rust tests and authenticated lifecycle checks. Linux also passed the actual WebKit window/background opt-in test.
+- [Final installer matrix](https://github.com/ChristianRelf/Magpie/actions/runs/37706726510) passed on all four targets from `493c3db` with the final security and quota corrections. Each platform passed Rust tests and the authenticated CLI/native-daemon lifecycle test. Downloadable artifacts include the platform installer and standalone CLI; CI retains them for 14 days.
+- [Final code checks](https://github.com/ChristianRelf/Magpie/actions/runs/37706389429) passed on the same commit: frontend tests/build, Rust formatting and 104 tests, lifecycle, browser end-to-end flow and dependency audits. The Rust audit reports the two documented informational findings, without suppression. Subsequent documentation-only changes do not alter those binaries.
+
 ## Remaining release gates
 
-- Finish the current rebuild with the quota-provenance correction. The packaged daemon and AppImage have passed authenticated lifecycle checks, including restart persistence, duplicate-process locking and scoped CLI restrictions.
-- Native Linux, Windows, Apple Silicon and Intel macOS installer builds have succeeded in the packaging workflow; platform tests are still running. Actual installer/OS credential-store checks and real CLI login remain release gates.
+- Actual installation/OS credential-store checks and real CLI login remain release gates; automated platform tests do not certify these user-environment flows.
 - Configure installer signing/notarisation and a signed HTTPS updater channel; verify a real version-to-version update.
 - Live provider authentication/execution/quota checks require separately supplied test credentials and explicit consent to spend allowance. Optional smoke test is provided and is never run by CI.
 - Resolve or formally review the upstream `glib` iterator and `proc-macro-error` audit findings before claiming a clean public-release security review.
