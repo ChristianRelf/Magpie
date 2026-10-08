@@ -132,7 +132,18 @@ pub struct AccountLimits {
 
 impl AccountLimits {
     pub fn from_windows(account_id: String, windows: Vec<LimitWindow>, now: Timestamp) -> Self {
-        let state = windows.iter().map(|w| w.state_at(now, 0.8)).filter(|s| *s != LimitState::Unknown).max().unwrap_or(LimitState::Unknown);
+        let state = windows
+            .iter()
+            .map(|w| w.state_at(now, 0.8))
+            .max_by_key(|s| match s {
+                LimitState::Unknown => 0,
+                LimitState::Available => 1,
+                LimitState::ResetPending => 2,
+                LimitState::Approaching => 3,
+                LimitState::Limited => 4,
+                LimitState::Exhausted => 5,
+            })
+            .unwrap_or(LimitState::Unknown);
         let next_reset = windows.iter().filter_map(|w| w.resets_at).filter(|r| *r > now).min();
         Self { account_id, state, windows, next_reset }
     }
@@ -206,6 +217,17 @@ mod tests {
         assert!(!w.blocks(now));
         w.remaining = Some(8.0);
         assert_eq!(w.state_at(now, 0.8), LimitState::ResetPending);
+    }
+
+    #[test]
+    fn exhausted_window_takes_priority_over_pending_reset() {
+        let now = crate::now();
+        let mut expired = window(None, None, Some(30.0));
+        expired.resets_at = Some(now - Duration::seconds(1));
+        let mut exhausted = window(None, None, Some(100.0));
+        exhausted.resets_at = Some(now + Duration::days(1));
+        let limits = AccountLimits::from_windows("a".into(), vec![expired, exhausted], now);
+        assert_eq!(limits.state, LimitState::Exhausted);
     }
 
     #[test]
