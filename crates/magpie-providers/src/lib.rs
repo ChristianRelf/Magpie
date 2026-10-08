@@ -70,6 +70,17 @@ pub trait ProviderAdapter: Send + Sync {
         Ok(None)
     }
 
+    /// Start the official CLI's browser flow for an isolated profile.
+    async fn begin_login(&self) -> HarnessResult<LoginChallenge> {
+        Err(HarnessError::new(ErrorKind::Unsupported, "Browser sign-in is unavailable for this connection"))
+    }
+
+    /// Revoke only credentials owned by this Magpie profile. Never log out
+    /// the user's shared CLI/IDE account.
+    async fn revoke_auth(&self) -> HarnessResult<()> {
+        Ok(())
+    }
+
     /// Release long-lived resources (child processes).
     async fn shutdown(&self) {}
 }
@@ -86,7 +97,7 @@ pub fn build_adapter(account: Account, secret: Option<String>) -> HarnessResult<
         OpenAi | OpenRouter | Groq | Mistral | DeepSeek | Ollama | LmStudio | OpenAiCompatible => {
             Arc::new(openai_compat::OpenAiCompatAdapter::new(account, secret)?)
         }
-        ClaudeCode => Arc::new(cli::claude_code::ClaudeCodeAdapter::new(account)),
+        ClaudeCode => Arc::new(cli::claude_code::ClaudeCodeAdapter::with_token(account, secret)?),
         CodexCli => Arc::new(cli::codex::CodexAdapter::new(account)),
         GeminiCli => Arc::new(cli::gemini_cli::GeminiCliAdapter::new(account)),
     };

@@ -38,11 +38,36 @@ struct AppServer {
     alive: AtomicBool,
     last_used: std::sync::Mutex<Instant>,
     active: AtomicU64,
+    login_id: Mutex<Option<String>>,
+    login_error: Mutex<Option<String>>,
+}
+
+fn profile_command(bin: &std::path::Path, account: &Account) -> HarnessResult<tokio::process::Command> {
+    let mut cmd = command(bin, &["OPENAI_API_KEY"]);
+    if account.cli_auth_mode() == CliAuthMode::Isolated {
+        let home =
+            account.options["_profile_home"].as_str().ok_or_else(|| HarnessError::invalid("Missing Codex authentication profile"))?;
+        for key in [
+            "CODEX_HOME",
+            "CODEX_SQLITE_HOME",
+            "CODEX_API_KEY",
+            "CODEX_ACCESS_TOKEN",
+            "OPENAI_BASE_URL",
+            "OPENAI_FEDERATION_RULE_ID",
+            "OPENAI_IDENTITY_TOKEN_FILE",
+        ] {
+            cmd.env_remove(key);
+        }
+        cmd.env("CODEX_HOME", home).current_dir(home);
+        // Never let Codex silently fall back to plaintext auth.json storage.
+        cmd.args(["-c", "cli_auth_credentials_store=\"keyring\""]);
+    }
+    Ok(cmd)
 }
 
 impl AppServer {
-    async fn spawn(bin: &std::path::Path) -> HarnessResult<Arc<Self>> {
-        let mut cmd = command(bin, &["OPENAI_API_KEY"]);
+    async fn spawn(bin: &std::path::Path, account: &Account) -> HarnessResult<Arc<Self>> {
+        let mut cmd = profile_command(bin, account)?;
         cmd.arg("app-server").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
         let mut child = cmd.spawn().map_err(|e| super::spawn_error(bin, e))?;
         let stdin = child.stdin.take().ok_or_else(|| HarnessError::internal("no stdin"))?;
@@ -57,6 +82,8 @@ impl AppServer {
             alive: AtomicBool::new(true),
             last_used: std::sync::Mutex::new(Instant::now()),
             active: AtomicU64::new(0),
+            login_id: Mutex::new(None),
+            login_error: Mutex::new(None),
         });
         let weak = Arc::downgrade(&server);
         tokio::spawn(read_loop(weak, BufReader::new(stdout)));
@@ -156,6 +183,14 @@ async fn read_loop(server: Weak<AppServer>, stdout: BufReader<tokio::process::Ch
                     *server.rate_limits.lock().await = params.get("rateLimits").cloned().or(Some(params.clone()));
                     continue;
                 }
+                if method == "account/login/completed" {
+                    *server.login_error.lock().await = if params["success"].as_bool() == Some(true) {
+                        None
+                    } else {
+                        Some(magpie_security::redact(params["error"].as_str().unwrap_or("Sign-in was not completed")))
+                    };
+                    continue;
+                }
                 if let Some(tid) = params.get("threadId").and_then(|t| t.as_str()) {
                     if let Some(tx) = server.threads.lock().await.get(tid) {
                         let _ = tx.send((method, params));
@@ -199,7 +234,7 @@ impl CodexAdapter {
                 return Ok(s.clone());
             }
         }
-        let s = AppServer::spawn(&self.binary()?).await?;
+        let s = AppServer::spawn(&self.binary()?, &self.account).await?;
         *guard = Some(s.clone());
         // Reaper: stop the app-server when idle to keep resource use low.
         let slot = Arc::downgrade(&self.server);
@@ -327,9 +362,21 @@ impl ProviderAdapter for CodexAdapter {
     async fn verify(&self) -> HarnessResult<VerifiedIdentity> {
         let server = self.server().await?;
         let v = server.request("account/read", json!({})).await?;
+        if self.account.has_managed_profile() {
+            if let Some(error) = server.login_error.lock().await.clone() {
+                return Err(HarnessError::new(ErrorKind::Authentication, error));
+            }
+        }
         let account = &v["account"];
         if account.is_null() {
-            return Err(HarnessError::new(ErrorKind::Authentication, "Codex is not signed in. Run `codex login`."));
+            let message = server.login_error.lock().await.clone().unwrap_or_else(|| {
+                if self.account.has_managed_profile() {
+                    "Complete browser sign-in for this Codex profile.".into()
+                } else {
+                    "Codex is not signed in. Run `codex login`.".into()
+                }
+            });
+            return Err(HarnessError::new(ErrorKind::Authentication, message));
         }
         let ty = account["type"].as_str().unwrap_or_default();
         let billing = match ty {
@@ -608,6 +655,43 @@ impl ProviderAdapter for CodexAdapter {
             s.kill().await;
         }
     }
+
+    async fn begin_login(&self) -> HarnessResult<LoginChallenge> {
+        if self.account.cli_auth_mode() != CliAuthMode::Isolated {
+            return Err(HarnessError::invalid("Sign-in is only managed for separate Codex profiles"));
+        }
+        let server = self.server().await?;
+        let mut login = server.login_id.lock().await;
+        if let Some(id) = login.take() {
+            server.request("account/login/cancel", json!({"loginId": id})).await?;
+        }
+        *server.login_error.lock().await = None;
+        let value = server.request("account/login/start", json!({"type": "chatgpt"})).await?;
+        let url = value["authUrl"].as_str().ok_or_else(|| {
+            HarnessError::new(ErrorKind::LocalDependency, "Codex did not return a browser sign-in URL. Update the official CLI.")
+        })?;
+        let parsed = reqwest::Url::parse(url).map_err(|_| HarnessError::invalid("Invalid Codex sign-in URL"))?;
+        let host = parsed.host_str().unwrap_or_default();
+        if parsed.scheme() != "https"
+            || !(host == "chatgpt.com" || host.ends_with(".chatgpt.com") || host == "openai.com" || host.ends_with(".openai.com"))
+        {
+            return Err(HarnessError::invalid("Codex returned an unexpected sign-in URL"));
+        }
+        *login = value["loginId"].as_str().map(str::to_string);
+        Ok(LoginChallenge { auth_url: url.to_string() })
+    }
+
+    async fn revoke_auth(&self) -> HarnessResult<()> {
+        if self.account.cli_auth_mode() == CliAuthMode::Isolated {
+            let server = self.server().await?;
+            let mut login = server.login_id.lock().await;
+            if let Some(id) = login.take() {
+                server.request("account/login/cancel", json!({"loginId": id})).await?;
+            }
+            server.request("account/logout", json!({})).await?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -657,5 +741,117 @@ mod tests {
         assert_eq!(u.cached_input_tokens, Some(40));
         assert_eq!(u.cache_write_tokens, None);
         assert_eq!(u.reasoning_tokens, Some(5));
+    }
+
+    #[test]
+    fn separate_profiles_force_secure_storage_and_remove_ambient_auth() {
+        let mut account = adapter().account;
+        account.options = json!({"auth_mode": "isolated", "_profile_home": "/test/profile-one"});
+        let cmd = profile_command(std::path::Path::new("codex"), &account).unwrap();
+        let env: HashMap<_, _> =
+            cmd.as_std().get_envs().map(|(k, v)| (k.to_string_lossy().into_owned(), v.map(|v| v.to_string_lossy().into_owned()))).collect();
+        assert_eq!(env["CODEX_HOME"].as_deref(), Some("/test/profile-one"));
+        for key in
+            ["OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN", "CODEX_SQLITE_HOME", "OPENAI_BASE_URL", "OPENAI_IDENTITY_TOKEN_FILE"]
+        {
+            assert_eq!(env[key], None, "must strip {key}");
+        }
+        assert!(cmd.as_std().get_args().any(|a| a == "cli_auth_credentials_store=\"keyring\""));
+        account.options["_profile_home"] = json!("/test/profile-two");
+        let second = profile_command(std::path::Path::new("codex"), &account).unwrap();
+        assert_ne!(cmd.as_std().get_current_dir(), second.as_std().get_current_dir());
+        account.options = json!({"auth_mode": "isolated"});
+        assert!(profile_command(std::path::Path::new("codex"), &account).is_err());
+    }
+
+    #[test]
+    fn shared_cli_profile_does_not_override_its_home_or_credential_store() {
+        let cmd = profile_command(std::path::Path::new("codex"), &adapter().account).unwrap();
+        assert!(!cmd.as_std().get_envs().any(|(key, _)| key == "CODEX_HOME"));
+        assert_eq!(cmd.as_std().get_args().count(), 0);
+    }
+}
+
+#[cfg(all(test, unix))]
+mod login_protocol_tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    #[tokio::test]
+    async fn official_protocol_login_refresh_and_logout_are_per_profile() {
+        // Scripted CLI only. No actual browser, account, token or provider API.
+        let root = std::env::temp_dir().join(format!("magpie-codex-auth-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        struct Cleanup(PathBuf);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        let _cleanup = Cleanup(root.clone());
+        let binary = root.join("codex-fixture");
+        std::fs::write(&binary, r#"#!/usr/bin/env python3
+import json, os, sys
+home = os.environ['CODEX_HOME']
+assert 'cli_auth_credentials_store="keyring"' in sys.argv
+assert 'OPENAI_API_KEY' not in os.environ
+marker = os.path.join(home, 'fixture-login-state')
+for line in sys.stdin:
+    msg = json.loads(line)
+    if 'id' not in msg: continue
+    method = msg['method']
+    result = {}
+    if method == 'account/login/start':
+        open(marker, 'w').write('test identity only')
+        result = {'loginId': 'fixture', 'authUrl': 'https://auth.openai.com/test-only'}
+    elif method == 'account/read':
+        result = {'account': {'type': 'chatgpt', 'email': os.path.basename(home)+'@example.test', 'planType': 'plus'} if os.path.exists(marker) else None}
+    elif method == 'account/logout':
+        if os.path.exists(marker): os.unlink(marker)
+    elif method == 'model/list':
+        result = {'data': [], 'nextCursor': None}
+    print(json.dumps({'id': msg['id'], 'result': result}), flush=True)
+    if method == 'account/login/start':
+        print(json.dumps({'method': 'account/login/completed', 'params': {'loginId': 'fixture', 'success': True, 'error': None}}), flush=True)
+"#).unwrap();
+        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let profile = |name: &str| {
+            let home = root.join(name);
+            std::fs::create_dir_all(&home).unwrap();
+            CodexAdapter::new(Account {
+                id: name.into(),
+                kind: ProviderKind::CodexCli,
+                label: name.into(),
+                auth_method: AuthMethod::CliDelegated,
+                billing_mode: BillingMode::Subscription,
+                billing_reported: false,
+                base_url: None,
+                identity: None,
+                plan: None,
+                status: ConnectionStatus::NeedsAuth,
+                status_message: None,
+                enabled: true,
+                last_verified_at: None,
+                created_at: now(),
+                has_secret: false,
+                secret_store: None,
+                options: json!({"auth_mode": "isolated", "_profile_home": home, "cli_path": binary}),
+            })
+        };
+        let one = profile("one");
+        let two = profile("two");
+        assert_eq!(one.verify().await.unwrap_err().kind, ErrorKind::Authentication);
+        one.begin_login().await.unwrap();
+        assert_eq!(one.verify().await.unwrap().identity.as_deref(), Some("one@example.test"));
+        assert!(two.verify().await.is_err(), "one sign-in must not authenticate another profile");
+        two.begin_login().await.unwrap();
+        assert_eq!(two.verify().await.unwrap().identity.as_deref(), Some("two@example.test"));
+        one.shutdown().await;
+        assert_eq!(one.verify().await.unwrap().identity.as_deref(), Some("one@example.test"), "profile survives process restart");
+        one.revoke_auth().await.unwrap();
+        assert!(one.verify().await.is_err());
+        assert!(two.verify().await.is_ok(), "logout must be scoped to one profile");
+        one.shutdown().await;
+        two.shutdown().await;
     }
 }

@@ -5,13 +5,17 @@ use serde::Deserialize;
 
 use crate::{AccountEntry, Harness, HarnessEvent};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct ConnectRequest {
     pub kind: ProviderKind,
     #[serde(default)]
     pub label: Option<String>,
     #[serde(default)]
     pub api_key: Option<String>,
+    #[serde(default)]
+    pub oauth_token: Option<String>,
+    #[serde(default)]
+    pub auth_mode: CliAuthMode,
     #[serde(default)]
     pub base_url: Option<String>,
     #[serde(default)]
@@ -21,12 +25,13 @@ pub struct ConnectRequest {
     pub billing_mode: Option<BillingMode>,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Clone, Default, Deserialize)]
 pub struct AccountPatch {
     pub label: Option<String>,
     pub enabled: Option<bool>,
     pub base_url: Option<String>,
     pub api_key: Option<String>,
+    pub oauth_token: Option<String>,
     pub options: Option<serde_json::Value>,
     pub billing_mode: Option<BillingMode>,
 }
@@ -74,7 +79,24 @@ impl Harness {
 
     async fn build_adapter(&self, account: &Account) -> HarnessResult<SharedAdapter> {
         let secret = self.read_secret(account).await?;
-        (self.factory)(account.clone(), secret)
+        self.adapter_with_secret(account, secret)
+    }
+
+    fn adapter_with_secret(&self, account: &Account, secret: Option<String>) -> HarnessResult<SharedAdapter> {
+        let mut adapter_account = account.clone();
+        if account.has_managed_profile() {
+            // The client cannot choose a path or redirect another profile.
+            let dir = self.paths.root.join("auth-profiles").join(&account.id);
+            std::fs::create_dir_all(&dir).map_err(|e| HarnessError::internal(format!("Cannot create authentication profile: {e}")))?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))
+                    .map_err(|e| HarnessError::internal(format!("Cannot protect authentication profile: {e}")))?;
+            }
+            adapter_account.options["_profile_home"] = serde_json::json!(dir);
+        }
+        (self.factory)(adapter_account, secret)
     }
 
     pub(crate) fn adapter_for(&self, account_id: &str) -> Option<SharedAdapter> {
@@ -92,16 +114,18 @@ impl Harness {
     }
 
     fn save_account(&self, account: &Account) -> HarnessResult<()> {
+        let mut accounts = self.accounts.write();
+        let entry = accounts.get_mut(&account.id).ok_or_else(|| HarnessError::invalid("Account was disconnected"))?;
         self.store.upsert_account(account)?;
-        if let Some(e) = self.accounts.write().get_mut(&account.id) {
-            e.account = account.clone();
-        }
+        entry.account = account.clone();
+        drop(accounts);
         self.emit(HarnessEvent::AccountUpdated { account: account.clone() });
         Ok(())
     }
 
     /// Create a connection, verify it and discover its models.
     pub async fn connect(&self, req: ConnectRequest) -> HarnessResult<Account> {
+        let _guard = self.connect_lock.lock().await;
         let d = req.kind.descriptor();
         if !d.allow_multiple && self.accounts.read().values().any(|e| e.account.kind == req.kind) {
             return Err(HarnessError::invalid(format!("{} is already connected", d.name)));
@@ -112,21 +136,44 @@ impl Harness {
         if req.kind == ProviderKind::OpenAiCompatible && req.base_url.is_none() {
             return Err(HarnessError::invalid("A base URL is required for OpenAI-compatible endpoints"));
         }
-        let key = req.api_key.as_deref().map(str::trim).filter(|k| !k.is_empty()).map(str::to_string);
+        match (req.kind, req.auth_mode) {
+            (_, CliAuthMode::Existing) => {}
+            (ProviderKind::CodexCli, CliAuthMode::Isolated) => {}
+            (ProviderKind::ClaudeCode, CliAuthMode::SavedToken) => {}
+            _ => return Err(HarnessError::invalid("This provider does not support the selected authentication mode")),
+        }
+        if d.auth_method == AuthMethod::CliDelegated
+            && req.auth_mode == CliAuthMode::Existing
+            && self.accounts.read().values().any(|e| e.account.kind == req.kind && e.account.cli_auth_mode() == CliAuthMode::Existing)
+        {
+            return Err(HarnessError::invalid("The shared CLI login is already connected. Add a separate sign-in or saved token instead."));
+        }
+        if req.oauth_token.is_some() && req.auth_mode != CliAuthMode::SavedToken {
+            return Err(HarnessError::invalid("OAuth tokens are only supported with Claude Code saved-token authentication"));
+        }
+        if req.api_key.is_some() && d.auth_method == AuthMethod::CliDelegated {
+            return Err(HarnessError::invalid("Use the API provider to connect an API key"));
+        }
+        let key = req.oauth_token.as_deref().or(req.api_key.as_deref()).map(str::trim).filter(|k| !k.is_empty()).map(str::to_string);
+        if req.auth_mode == CliAuthMode::SavedToken && key.is_none() {
+            return Err(HarnessError::invalid("A token generated by claude setup-token is required"));
+        }
         if d.auth_method == AuthMethod::ApiKey && key.is_none() && req.kind != ProviderKind::OpenAiCompatible {
             return Err(HarnessError::new(ErrorKind::Authentication, "An API key is required"));
         }
         if let Some(opts) = &req.options {
-            if !opts.is_object() {
-                return Err(HarnessError::invalid("options must be an object"));
-            }
+            validate_options(opts)?;
+        }
+        let mut options = req.options.unwrap_or_else(|| serde_json::json!({}));
+        if req.auth_mode != CliAuthMode::Existing {
+            options["auth_mode"] = serde_json::json!(req.auth_mode);
         }
         let id = new_id("acc");
         let mut account = Account {
             id: id.clone(),
             kind: req.kind,
             label: req.label.filter(|l| !l.trim().is_empty()).unwrap_or_else(|| d.name.to_string()),
-            auth_method: d.auth_method,
+            auth_method: if req.auth_mode == CliAuthMode::SavedToken { AuthMethod::CliToken } else { d.auth_method },
             billing_mode: req.billing_mode.unwrap_or(d.default_billing),
             billing_reported: false,
             base_url: req.base_url,
@@ -139,12 +186,17 @@ impl Harness {
             created_at: now(),
             has_secret: false,
             secret_store: None,
-            options: req.options.unwrap_or_else(|| serde_json::json!({})),
+            options,
         };
-        // Verify before persisting anything so a bad key leaves no trace.
-        let adapter = (self.factory)(account.clone(), key.clone())?;
-        let identity = adapter.verify().await?;
-        apply_identity(&mut account, identity);
+        let adapter = self.adapter_with_secret(&account, key.clone())?;
+        if req.auth_mode == CliAuthMode::Isolated {
+            account.status = ConnectionStatus::NeedsAuth;
+            account.status_message = Some("Sign in to this separate profile with your ChatGPT account.".into());
+        } else {
+            // Verify keys before persisting; never make a paid test request.
+            let identity = adapter.verify().await?;
+            apply_identity(&mut account, identity);
+        }
         if let Some(k) = &key {
             let backend = self.write_secret(&id, k).await?;
             account.has_secret = true;
@@ -152,14 +204,61 @@ impl Harness {
         }
         self.store.upsert_account(&account)?;
         // Rebuild with the final account (billing mode may have changed).
-        let adapter = (self.factory)(account.clone(), key)?;
+        adapter.shutdown().await;
+        let adapter = self.adapter_with_secret(&account, key)?;
         self.accounts.write().insert(id.clone(), AccountEntry { account: account.clone(), adapter: Some(adapter) });
         self.emit(HarnessEvent::AccountUpdated { account: account.clone() });
-        if let Err(e) = self.refresh_models(&id).await {
-            tracing::warn!(account = %id, error = %e, "model discovery failed after connect");
+        if account.status == ConnectionStatus::Connected {
+            if let Err(e) = self.refresh_models(&id).await {
+                tracing::warn!(account = %id, error = %e, "model discovery failed after connect");
+            }
+            let _ = self.poke_limits.send(id.clone());
         }
-        let _ = self.poke_limits.send(id.clone());
         Ok(self.get_account(&id).unwrap_or(account))
+    }
+
+    pub async fn begin_account_login(self: &std::sync::Arc<Self>, id: &str) -> HarnessResult<LoginChallenge> {
+        let _guard = self.connect_lock.lock().await;
+        let account = self.get_account(id).ok_or_else(|| HarnessError::invalid("Account not found"))?;
+        if account.kind != ProviderKind::CodexCli || account.cli_auth_mode() != CliAuthMode::Isolated {
+            return Err(HarnessError::invalid("Browser sign-in requires a separate Codex profile"));
+        }
+        if account.status == ConnectionStatus::Connected {
+            return Err(HarnessError::invalid("This profile is already connected. Add another profile for a different account."));
+        }
+        if let Some(previous) = self.login_tasks.write().remove(id) {
+            previous.cancel();
+        }
+        let challenge = self
+            .adapter_for(id)
+            .ok_or_else(|| HarnessError::new(ErrorKind::LocalDependency, "Provider adapter unavailable"))?
+            .begin_login()
+            .await?;
+        let cancelled = self.shutdown.child_token();
+        self.login_tasks.write().insert(id.to_string(), cancelled.clone());
+        let harness = self.clone();
+        let id = id.to_string();
+        tokio::spawn(async move {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(300);
+            while std::time::Instant::now() < deadline {
+                tokio::select! {
+                    _ = cancelled.cancelled() => break,
+                    _ = tokio::time::sleep(std::time::Duration::from_secs(2)) => {}
+                }
+                if harness.get_account(&id).is_none() {
+                    break;
+                }
+                if let Ok(account) = harness.verify_account(&id).await {
+                    if account.status == ConnectionStatus::Connected {
+                        let _ = harness.poke_limits.send(id.clone());
+                        break;
+                    }
+                }
+            }
+            cancelled.cancel();
+            harness.login_tasks.write().retain(|_, task| !task.is_cancelled());
+        });
+        Ok(challenge)
     }
 
     pub async fn update_account(&self, id: &str, patch: AccountPatch) -> HarnessResult<Account> {
@@ -186,10 +285,12 @@ impl Harness {
             rebuild = true;
         }
         if let Some(o) = patch.options {
-            if !o.is_object() {
-                return Err(HarnessError::invalid("options must be an object"));
-            }
+            validate_options(&o)?;
+            let auth_mode = account.cli_auth_mode();
             account.options = o;
+            if auth_mode != CliAuthMode::Existing {
+                account.options["auth_mode"] = serde_json::json!(auth_mode);
+            }
             rebuild = true;
         }
         if let Some(b) = patch.billing_mode {
@@ -198,7 +299,18 @@ impl Harness {
                 rebuild = true;
             }
         }
-        if let Some(k) = patch.api_key.map(|k| k.trim().to_string()).filter(|k| !k.is_empty()) {
+        if patch.oauth_token.is_some() && account.auth_method != AuthMethod::CliToken {
+            return Err(HarnessError::invalid("This connection does not use a saved CLI token"));
+        }
+        if patch.api_key.is_some() && account.auth_method != AuthMethod::ApiKey {
+            return Err(HarnessError::invalid("This connection does not use an API key"));
+        }
+        if let Some(k) = patch.oauth_token.or(patch.api_key).map(|k| k.trim().to_string()).filter(|k| !k.is_empty()) {
+            // A failed replacement must leave the previous credential intact.
+            let candidate = self.adapter_with_secret(&account, Some(k.clone()))?;
+            let verified = candidate.verify().await;
+            candidate.shutdown().await;
+            apply_identity(&mut account, verified?);
             let backend = self.write_secret(id, &k).await?;
             account.has_secret = true;
             account.secret_store = Some(backend.as_str().to_string());
@@ -220,18 +332,32 @@ impl Harness {
 
     /// Remove an account and revoke its stored credential.
     pub async fn delete_account(&self, id: &str) -> HarnessResult<()> {
+        let _guard = self.connect_lock.lock().await;
+        let account = self.get_account(id).ok_or_else(|| HarnessError::new(ErrorKind::ModelNotFound, "Account not found"))?;
+        if self.active.read().values().any(|e| e.summary.model.as_ref().is_some_and(|m| m.account_id == id)) {
+            return Err(HarnessError::invalid("Cancel active executions on this account before disconnecting it"));
+        }
+        if let Some(login) = self.login_tasks.write().remove(id) {
+            login.cancel();
+        }
+        if let Some(adapter) = self.adapter_for(id) {
+            adapter.revoke_auth().await?;
+        }
+        if account.has_secret {
+            let secrets = self.secrets.clone();
+            let owned_id = id.to_string();
+            let backend = account.secret_store.as_deref().and_then(SecretBackend::parse);
+            tokio::task::spawn_blocking(move || secrets.delete(&owned_id, backend))
+                .await
+                .map_err(|e| HarnessError::internal(e.to_string()))?
+                .map_err(|e| HarnessError::internal(format!("Could not remove credential: {e}")))?;
+        }
         let entry = self.accounts.write().remove(id);
         let Some(entry) = entry else {
             return Err(HarnessError::new(ErrorKind::ModelNotFound, "Account not found"));
         };
         if let Some(a) = entry.adapter {
             a.shutdown().await;
-        }
-        if entry.account.has_secret {
-            let secrets = self.secrets.clone();
-            let id_owned = id.to_string();
-            let backend = entry.account.secret_store.as_deref().and_then(SecretBackend::parse);
-            let _ = tokio::task::spawn_blocking(move || secrets.delete(&id_owned, backend)).await;
         }
         self.store.delete_account(id)?;
         self.models.write().retain(|(a, _, _)| a != id);
@@ -240,6 +366,9 @@ impl Harness {
         self.prefs.write().retain(|k, _| !k.starts_with(&format!("{id}/")));
         self.emit(HarnessEvent::AccountRemoved { account_id: id.to_string() });
         self.emit(HarnessEvent::ModelsUpdated { account_id: Some(id.to_string()) });
+        if account.has_managed_profile() {
+            let _ = std::fs::remove_dir_all(self.paths.root.join("auth-profiles").join(id));
+        }
         Ok(())
     }
 
@@ -247,6 +376,13 @@ impl Harness {
     pub async fn verify_account(&self, id: &str) -> HarnessResult<Account> {
         let mut account = self.get_account(id).ok_or_else(|| HarnessError::new(ErrorKind::ModelNotFound, "Account not found"))?;
         if !account.enabled {
+            return Ok(account);
+        }
+        // A setup-token has no documented, allowance-free remote validation
+        // endpoint. Local `auth status` must never revive a credential that
+        // Claude has already rejected. Replacing the token explicitly verifies
+        // its CLI configuration in update_account before clearing this state.
+        if account.auth_method == AuthMethod::CliToken && account.status == ConnectionStatus::NeedsAuth {
             return Ok(account);
         }
         let adapter = match self.adapter_for(id) {
@@ -420,6 +556,16 @@ impl Harness {
             .filter_map(|e| e.adapter.clone().map(|a| (e.account.clone(), a)))
             .collect()
     }
+}
+
+fn validate_options(options: &serde_json::Value) -> HarnessResult<()> {
+    if !options.is_object() {
+        return Err(HarnessError::invalid("options must be an object"));
+    }
+    if options.get("auth_mode").is_some() || options.get("_profile_home").is_some() {
+        return Err(HarnessError::invalid("Authentication profile options are managed by Magpie"));
+    }
+    Ok(())
 }
 
 fn apply_identity(account: &mut Account, id: VerifiedIdentity) {

@@ -41,8 +41,26 @@ pub enum AuthMethod {
     /// The provider's official CLI owns authentication; Magpie never sees the
     /// credential and invokes the CLI on the user's behalf.
     CliDelegated,
+    /// A documented Claude Code setup-token, stored by Magpie in the OS
+    /// credential manager and passed only to the official CLI.
+    CliToken,
     /// No authentication (local servers).
     None,
+}
+
+/// Authentication profiles are separate from model/configuration presets.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CliAuthMode {
+    #[default]
+    Existing,
+    Isolated,
+    SavedToken,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoginChallenge {
+    pub auth_url: String,
 }
 
 /// How usage on an account is billed.
@@ -158,7 +176,7 @@ impl ProviderKind {
                 cli_install: Some("npm install -g @anthropic-ai/claude-code"),
                 cli_login: Some("claude auth login"),
                 docs_url: "https://docs.anthropic.com/en/docs/claude-code",
-                allow_multiple: false,
+                allow_multiple: true,
                 summary: "Use your Claude subscription through the official Claude Code CLI.",
                 ..base
             },
@@ -171,7 +189,7 @@ impl ProviderKind {
                 cli_install: Some("npm install -g @openai/codex"),
                 cli_login: Some("codex login"),
                 docs_url: "https://developers.openai.com/codex/cli",
-                allow_multiple: false,
+                allow_multiple: true,
                 summary: "Use your ChatGPT plan through the official Codex CLI.",
                 ..base
             },
@@ -339,6 +357,14 @@ pub struct Account {
 }
 
 impl Account {
+    pub fn cli_auth_mode(&self) -> CliAuthMode {
+        self.options.get("auth_mode").cloned().and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default()
+    }
+
+    pub fn has_managed_profile(&self) -> bool {
+        matches!(self.cli_auth_mode(), CliAuthMode::Isolated | CliAuthMode::SavedToken)
+    }
+
     pub fn descriptor(&self) -> ProviderDescriptor {
         self.kind.descriptor()
     }

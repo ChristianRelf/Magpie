@@ -62,6 +62,8 @@ pub struct Harness {
     pub(crate) secret_backend: SecretBackend,
     pub(crate) factory: AdapterFactory,
     pub(crate) accounts: RwLock<HashMap<String, AccountEntry>>,
+    pub(crate) connect_lock: tokio::sync::Mutex<()>,
+    pub(crate) login_tasks: RwLock<HashMap<String, CancellationToken>>,
     pub(crate) models: RwLock<Vec<(String, DiscoveredModel, Timestamp)>>,
     pub(crate) prefs: RwLock<HashMap<String, ModelPreference>>,
     /// Session-level model blocks after model-not-found/permission errors.
@@ -128,6 +130,8 @@ impl Harness {
             secret_backend: opts.secret_backend,
             factory,
             accounts: RwLock::new(HashMap::new()),
+            connect_lock: tokio::sync::Mutex::new(()),
+            login_tasks: RwLock::new(HashMap::new()),
             models: RwLock::new(store.list_models()?),
             prefs: RwLock::new(store.model_prefs()?),
             blocked_models: RwLock::new(HashMap::new()),

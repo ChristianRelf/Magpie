@@ -311,6 +311,11 @@ export class MagpieClient {
     return this.json("POST", `/v1/providers/${encodeURIComponent(id)}/verify`);
   }
 
+  /** Open auth_url in the browser; the harness completes sign-in in the background. */
+  loginProvider(id: string): Promise<{ auth_url: string }> {
+    return this.json("POST", `/v1/providers/${encodeURIComponent(id)}/login`);
+  }
+
   refreshProvider(
     id: string,
   ): Promise<{ account: Account; models: number | null }> {

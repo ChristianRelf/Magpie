@@ -95,6 +95,27 @@ The CLI equivalent is `magpie run --model codex_cli/MODEL_ID --cwd /path/to/repo
 
 Usage query parameters include `range=1h|24h|7d|30d|custom`, `from`/`to` in Unix milliseconds, `provider`, `model_key`, `bucket_ms` for time series, and `group_by` for breakdowns. Error responses have an `error` object with a stable type and safe message. Retry only according to the returned error and your side-effect policy.
 
+## Authentication profile management
+
+These endpoints require an admin key. Each connection has a distinct account ID; requests pinned to that account remain pinned unless fallback is enabled.
+
+```ts
+// Existing default CLI connections continue to work without auth_mode.
+const profile = await client.connectProvider({
+  kind: "codex_cli", label: "Work", auth_mode: "isolated",
+}); // status: needs_auth; no executable models yet
+const { auth_url } = await client.loginProvider(profile.id);
+// Open auth_url in a browser. The harness detects completion independently.
+// Observe account_updated events or GET /v1/providers for connected/needs_auth.
+
+await client.connectProvider({
+  kind: "claude_code", label: "Backup", auth_mode: "saved_token",
+  oauth_token: tokenFromOfficialSetupToken,
+});
+```
+
+`POST /v1/providers/{id}/login` only starts sign-in for an isolated Codex profile. `POST /v1/providers/{id}/verify` checks connection state without inference. `PATCH /v1/providers/{id}` accepts `oauth_token` for a saved Claude token or `api_key` for an API connection; these secrets are never returned. Authentication mode and profile paths cannot be changed through `options`. `DELETE /v1/providers/{id}` removes the saved credential; isolated Codex profiles are logged out through the official CLI. Cancel active executions before disconnecting. See [provider limitations](PROVIDERS.md#saved-authentication-profiles) for renewal, quota and safe fallback semantics.
+
 ## MCP
 
 `magpie mcp` is a stdio MCP bridge exposing model listing, routing and execution tools to compatible MCP clients. Set `MAGPIE_API_KEY` to a dedicated scoped key in that client's process environment; no separate remote MCP server is required. This is an optional developer integration, not a claim of verified compatibility with every named IDE.

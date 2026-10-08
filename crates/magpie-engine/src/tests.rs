@@ -52,6 +52,13 @@ async fn fixture() -> Fixture {
     let dir = std::env::temp_dir().join(format!("magpie-engine-test-{}", uuid::Uuid::new_v4().simple()));
     let mut mocks = HashMap::new();
     mocks.insert(
+        ProviderKind::CodexCli,
+        Arc::new(MockAdapter::new(
+            dummy_account(ProviderKind::CodexCli),
+            vec![model("codex", QualityTier::High, SpeedClass::Medium, caps(false), None)],
+        )),
+    );
+    mocks.insert(
         ProviderKind::ClaudeCode,
         Arc::new(MockAdapter::new(
             dummy_account(ProviderKind::ClaudeCode),
@@ -98,6 +105,8 @@ async fn fixture() -> Fixture {
 
 async fn connect(f: &Fixture, kind: ProviderKind) -> Account {
     f.h.connect(ConnectRequest {
+        auth_mode: CliAuthMode::Existing,
+        oauth_token: None,
         kind,
         label: None,
         api_key: if kind == ProviderKind::OpenAi { Some("sk-test-1234567890abcdef".into()) } else { None },
@@ -449,4 +458,174 @@ async fn invalid_server_settings_are_rejected_without_mutation() {
     changed.server.max_concurrency = 0;
     assert!(f.h.update_settings(changed).is_err());
     assert_eq!(f.h.settings(), before);
+}
+
+fn profile_request(kind: ProviderKind, label: &str, mode: CliAuthMode, token: Option<&str>) -> ConnectRequest {
+    serde_json::from_value(serde_json::json!({"kind": kind, "label": label, "auth_mode": mode, "oauth_token": token})).unwrap()
+}
+
+#[tokio::test]
+async fn saved_credentials_are_independent_persist_and_revoke_individually() {
+    let f = fixture().await;
+    let first =
+        f.h.connect(profile_request(ProviderKind::ClaudeCode, "Work", CliAuthMode::SavedToken, Some("sk-ant-oat01-work-test-credential")))
+            .await
+            .unwrap();
+    let second =
+        f.h.connect(profile_request(
+            ProviderKind::ClaudeCode,
+            "Personal",
+            CliAuthMode::SavedToken,
+            Some("sk-ant-oat01-personal-test-credential"),
+        ))
+        .await
+        .unwrap();
+    assert_ne!(first.id, second.id);
+    assert_eq!(first.auth_method, AuthMethod::CliToken);
+    assert_eq!(f.h.secrets.get(&first.id, None).unwrap().as_deref(), Some("sk-ant-oat01-work-test-credential"));
+    assert_eq!(f.h.secrets.get(&second.id, None).unwrap().as_deref(), Some("sk-ant-oat01-personal-test-credential"));
+    let public = serde_json::to_string(&f.h.list_accounts()).unwrap();
+    assert!(!public.contains("sk-ant"));
+    assert!(!public.contains("_profile_home"));
+    let restored = Harness::open(HarnessOptions {
+        paths: f.h.paths.clone(),
+        secrets: f.h.secrets.clone(),
+        secret_backend: SecretBackend::Memory,
+        adapter_factory: Some(f.h.factory.clone()),
+        launch_command: None,
+        background: false,
+    })
+    .await
+    .unwrap();
+    assert_eq!(restored.list_accounts().len(), 2);
+    assert!(restored.adapter_for(&second.id).is_some());
+    restored.delete_account(&first.id).await.unwrap();
+    assert_eq!(restored.secrets.get(&first.id, None).unwrap(), None);
+    assert!(restored.secrets.get(&second.id, None).unwrap().is_some());
+    assert!(!restored.paths.root.join("auth-profiles").join(&first.id).exists());
+    assert!(restored.paths.root.join("auth-profiles").join(&second.id).exists());
+}
+
+#[tokio::test]
+async fn separate_codex_profiles_start_disconnected_and_cannot_override_another_home() {
+    let f = fixture().await;
+    let first = f.h.connect(profile_request(ProviderKind::CodexCli, "Work", CliAuthMode::Isolated, None)).await.unwrap();
+    let second = f.h.connect(profile_request(ProviderKind::CodexCli, "Personal", CliAuthMode::Isolated, None)).await.unwrap();
+    assert_ne!(first.id, second.id);
+    assert_eq!(first.status, ConnectionStatus::NeedsAuth);
+    assert!(first.last_verified_at.is_none());
+    assert!(f.h.list_models().is_empty(), "unauthed profiles cannot route requests");
+    let err =
+        f.h.update_account(
+            &first.id,
+            AccountPatch { options: Some(serde_json::json!({"_profile_home": "/another-account"})), ..Default::default() },
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind, ErrorKind::InvalidRequest);
+    let renamed = f.h.update_account(&first.id, AccountPatch { label: Some("Renamed".into()), ..Default::default() }).await.unwrap();
+    assert_eq!(renamed.cli_auth_mode(), CliAuthMode::Isolated);
+    assert_eq!(renamed.status, ConnectionStatus::NeedsAuth);
+    assert!(ProviderKind::CodexCli.descriptor().allow_multiple);
+    assert!(ProviderKind::ClaudeCode.descriptor().allow_multiple);
+    assert!(!ProviderKind::GeminiCli.descriptor().allow_multiple);
+}
+
+#[tokio::test]
+async fn a_shared_cli_login_cannot_be_connected_twice_even_concurrently() {
+    let f = fixture().await;
+    let req = profile_request(ProviderKind::ClaudeCode, "Existing", CliAuthMode::Existing, None);
+    let (a, b) = tokio::join!(f.h.connect(req.clone()), f.h.connect(req));
+    assert_ne!(a.is_ok(), b.is_ok());
+    assert_eq!(f.h.list_accounts().len(), 1);
+    assert!(f.h.connect(profile_request(ProviderKind::GeminiCli, "Unsupported", CliAuthMode::Isolated, None)).await.is_err());
+    assert!(f.h.connect(profile_request(ProviderKind::ClaudeCode, "No token", CliAuthMode::SavedToken, None)).await.is_err());
+}
+
+#[tokio::test]
+async fn fallback_skips_all_models_on_an_expired_or_exhausted_saved_account() {
+    for failure in [ErrorKind::Authentication, ErrorKind::QuotaExhausted] {
+        let f = fixture().await;
+        let first =
+            f.h.connect(profile_request(
+                ProviderKind::ClaudeCode,
+                "Primary",
+                CliAuthMode::SavedToken,
+                Some("sk-ant-oat01-primary-test-credential"),
+            ))
+            .await
+            .unwrap();
+        let second =
+            f.h.connect(profile_request(
+                ProviderKind::ClaudeCode,
+                "Backup",
+                CliAuthMode::SavedToken,
+                Some("sk-ant-oat01-backup-test-credential"),
+            ))
+            .await
+            .unwrap();
+        // More unusable models than MAX_ATTEMPTS, all ahead of the backup.
+        for i in 0..5 {
+            f.h.models.write().push((
+                first.id.clone(),
+                model(&format!("premium-{i}"), QualityTier::Frontier, SpeedClass::Fast, caps(false), None),
+                now(),
+            ));
+        }
+        for m in f.h.list_models().iter().filter(|m| m.account_id == first.id) {
+            f.h.set_model_preference(&m.key, ModelPreference { priority: 10, ..Default::default() }).unwrap();
+        }
+        f.mocks[&ProviderKind::ClaudeCode].script("sub-top", vec![Script::fail(failure), Script::text("backup credential")]);
+        let mut request = ExecRequest::simple("Plan a complex migration");
+        request.model = ModelInfo::make_key(&first.id, "sub-top");
+        request.preferences.allow_fallback = Some(true);
+        let (result, events) = f.h.execute_collect(request, "profile test".into()).await.unwrap();
+        assert_eq!(result.model.account_id, second.id);
+        assert_eq!(result.attempts, 2, "unusable models must not spend attempts");
+        assert_eq!(result.output_text, "backup credential");
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, ExecEvent::RoutingChanged { from, to, .. } if from.account_id == first.id && to.account_id == second.id)));
+        if failure == ErrorKind::Authentication {
+            assert_eq!(f.h.get_account(&first.id).unwrap().status, ConnectionStatus::NeedsAuth);
+            assert_eq!(
+                f.h.verify_account(&first.id).await.unwrap().status,
+                ConnectionStatus::NeedsAuth,
+                "local credential presence cannot revive an expired token"
+            );
+        }
+        assert_eq!(f.h.get_account(&second.id).unwrap().status, ConnectionStatus::Connected);
+    }
+}
+
+#[tokio::test]
+async fn saved_accounts_respect_manual_no_fallback_and_partial_stream_safety() {
+    for partial in [false, true] {
+        let f = fixture().await;
+        let first =
+            f.h.connect(profile_request(
+                ProviderKind::ClaudeCode,
+                "Primary",
+                CliAuthMode::SavedToken,
+                Some("sk-ant-oat01-primary-test-credential"),
+            ))
+            .await
+            .unwrap();
+        f.h.connect(profile_request(
+            ProviderKind::ClaudeCode,
+            "Backup",
+            CliAuthMode::SavedToken,
+            Some("sk-ant-oat01-backup-test-credential"),
+        ))
+        .await
+        .unwrap();
+        let fail = HarnessError::new(ErrorKind::Authentication, "expired");
+        f.mocks[&ProviderKind::ClaudeCode]
+            .script("sub-top", vec![if partial { Script::FailAfterOutput("partial".into(), fail) } else { Script::Fail(fail) }]);
+        let mut req = ExecRequest::simple("test");
+        req.model = ModelInfo::make_key(&first.id, "sub-top");
+        req.preferences.allow_fallback = Some(partial);
+        assert_eq!(f.h.execute_collect(req, "test".into()).await.unwrap_err().kind, ErrorKind::Authentication);
+        assert_eq!(f.mocks[&ProviderKind::ClaudeCode].calls.load(Ordering::SeqCst), 1);
+    }
 }

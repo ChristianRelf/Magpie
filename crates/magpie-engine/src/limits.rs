@@ -6,7 +6,7 @@ impl Harness {
     /// Read the opt-in local Claude status-line report. This never calls a
     /// provider or consumes allowance, including while provider polling is off.
     pub(crate) fn import_claude_usage(&self, account_id: &str) {
-        if self.get_account(account_id).is_none_or(|a| a.kind != ProviderKind::ClaudeCode || !a.enabled) {
+        if self.get_account(account_id).is_none_or(|a| a.kind != ProviderKind::ClaudeCode || !a.enabled || a.has_managed_profile()) {
             return;
         }
         let Some(snapshot) = magpie_providers::cli::claude_usage::read_snapshot(&self.paths.root, account_id) else { return };

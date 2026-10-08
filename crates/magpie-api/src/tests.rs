@@ -333,3 +333,39 @@ async fn disabling_read_scopes_never_disables_authentication() {
     assert_eq!(client().get(&url).bearer_auth(&key.token).send().await.unwrap().status(), 200);
     assert_eq!(client().get(&url).send().await.unwrap().status(), 401);
 }
+
+#[tokio::test]
+async fn profile_login_is_admin_only_and_managed_paths_are_not_client_options() {
+    let s = server().await;
+    let c = client();
+    let url = format!("{}/v1/providers", s.url);
+    let account: Value = c
+        .post(&url)
+        .bearer_auth(&s.admin)
+        .json(&json!({"kind": "codex_cli", "auth_mode": "isolated"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(account["status"], "needs_auth");
+    let login = format!("{}/{}/login", url, account["id"].as_str().unwrap());
+    assert_eq!(c.post(&login).send().await.unwrap().status(), 401);
+    let reader = s.harness.create_client("inventory-only", &["read".into()]).unwrap();
+    assert_eq!(c.post(&login).bearer_auth(&reader.token).send().await.unwrap().status(), 403);
+    // Authenticated admin reaches the adapter (this mock has no login flow).
+    let admin = c.post(&login).bearer_auth(&s.admin).send().await.unwrap();
+    let body: Value = admin.json().await.unwrap();
+    assert_eq!(body["error"]["type"], "unsupported");
+    let bad = c
+        .post(&url)
+        .bearer_auth(&s.admin)
+        .json(&json!({"kind": "codex_cli", "options": {"_profile_home": "/arbitrary/home"}}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(bad.status(), 400);
+    let inventory = c.get(&url).bearer_auth(&s.admin).send().await.unwrap().text().await.unwrap();
+    assert!(!inventory.contains("_profile_home"));
+}

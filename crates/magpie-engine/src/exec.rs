@@ -293,8 +293,20 @@ impl Harness {
                         }
                         continue;
                     }
-                    if decision.allow_fallback && e.kind.is_failover_candidate() && idx + 1 < decision.candidates.len() {
-                        let next = decision.candidates[idx + 1].model.clone();
+                    // The initial route is a snapshot. An expired credential
+                    // or account-wide quota can invalidate many of its models.
+                    // Re-evaluate eligibility while retaining the original
+                    // billing boundary and user-defined fallback order.
+                    let next_idx = if decision.allow_fallback && e.kind.is_failover_candidate() {
+                        let eligible = self.route_preview(&req).ok();
+                        (idx + 1..decision.candidates.len()).find(|i| {
+                            eligible.as_ref().is_some_and(|r| r.candidates.iter().any(|c| c.model.key == decision.candidates[*i].model.key))
+                        })
+                    } else {
+                        None
+                    };
+                    if let Some(next_idx) = next_idx {
+                        let next = decision.candidates[next_idx].model.clone();
                         let reason = format!("{} ({})", e.message.chars().take(160).collect::<String>(), e.kind.as_str());
                         let _ =
                             tx.send(ExecEvent::RoutingChanged { from: cand.model.clone(), to: next.clone(), reason: reason.clone() }).await;
@@ -304,7 +316,7 @@ impl Harness {
                             format!("{} failed: {reason}", cand.model.display_name),
                             Some(cand.model.account_id.clone()),
                         );
-                        idx += 1;
+                        idx = next_idx;
                         retried_same = false;
                         continue;
                     }
