@@ -12,8 +12,8 @@ async-trait = "0.1.92"
 bytes = "1.12.1"
 chrono = "0.4.45"
 futures = "0.3.34"
-magpie-core = { version = "0.1.0", path = "../magpie-core" }
-magpie-security = { version = "0.1.0", path = "../magpie-security" }
+magpie-core = { version = "0.1.1", path = "../magpie-core" }
+magpie-security = { version = "0.1.1", path = "../magpie-security" }
 reqwest = { version = "0.13.3", default-features = false, features = ["rustls", "json", "stream", "http2", "system-proxy"] }
 serde = "1.0.229"
 serde_json = "1.0.151"

@@ -20,6 +20,8 @@ pub enum Script {
     Fail(HarnessError),
     /// Emit one chunk, then fail (tests mid-stream failure handling).
     FailAfterOutput(String, HarnessError),
+    /// Report quotas before failing, as Claude Code does when a limit is hit.
+    FailAfterLimits(Vec<LimitWindow>, HarnessError),
     /// Wait for the duration (or cancellation) before replying.
     Delay(Duration, Box<Script>),
 }
@@ -110,6 +112,10 @@ impl ProviderAdapter for MockAdapter {
                     script = *inner;
                 }
                 Script::Fail(e) => return Err(e),
+                Script::FailAfterLimits(windows, e) => {
+                    emit(&events, ProviderEvent::Limits(windows)).await?;
+                    return Err(e);
+                }
                 Script::FailAfterOutput(t, e) => {
                     emit(&events, ProviderEvent::TextDelta(t)).await?;
                     return Err(e);

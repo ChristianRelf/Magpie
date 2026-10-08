@@ -269,6 +269,8 @@ pub enum ProviderEvent {
     ReasoningDelta(String),
     ToolCall(ToolCall),
     Usage(TokenUsage),
+    /// Provider-reported limits are useful even when the attempt later fails.
+    Limits(Vec<LimitWindow>),
     /// The concrete model that served the request, if the provider reports it.
     ResolvedModel(String),
 }

@@ -3,6 +3,27 @@ use magpie_core::*;
 use crate::{Harness, HarnessEvent};
 
 impl Harness {
+    /// Read the opt-in local Claude status-line report. This never calls a
+    /// provider or consumes allowance, including while provider polling is off.
+    pub(crate) fn import_claude_usage(&self, account_id: &str) {
+        if self.get_account(account_id).is_none_or(|a| a.kind != ProviderKind::ClaudeCode || !a.enabled) {
+            return;
+        }
+        let Some(snapshot) = magpie_providers::cli::claude_usage::read_snapshot(&self.paths.root, account_id) else { return };
+        let windows: Vec<_> = snapshot
+            .limits()
+            .into_iter()
+            .filter(|w| {
+                !self
+                    .limits
+                    .read()
+                    .get(account_id)
+                    .is_some_and(|existing| existing.iter().any(|e| e.key == w.key && e.observed_at >= w.observed_at))
+            })
+            .collect();
+        self.apply_limits(account_id, windows);
+    }
+
     /// Current limit windows for all accounts.
     pub fn limit_windows(&self) -> Vec<LimitWindow> {
         self.limits.read().values().flatten().cloned().collect()
@@ -151,6 +172,7 @@ impl Harness {
 
     /// Poll a provider's limit endpoint now.
     pub async fn refresh_limits(&self, account_id: &str) -> HarnessResult<Vec<LimitWindow>> {
+        self.import_claude_usage(account_id);
         let adapter =
             self.adapter_for(account_id).ok_or_else(|| HarnessError::new(ErrorKind::Authentication, "Account is not connected"))?;
         if adapter.supports_limit_polling() {

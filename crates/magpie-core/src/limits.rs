@@ -65,7 +65,7 @@ pub enum LimitState {
     Approaching,
     Limited,
     Exhausted,
-    /// Exhausted but the known reset time has passed; awaiting confirmation.
+    /// The known reset time has passed; awaiting a fresh provider report.
     ResetPending,
 }
 
@@ -88,15 +88,17 @@ impl LimitWindow {
 
     pub fn state_at(&self, now: Timestamp, approaching_threshold: f64) -> LimitState {
         let reset_passed = self.resets_at.map(|r| r <= now).unwrap_or(false);
+        if reset_passed {
+            return LimitState::ResetPending;
+        }
         let exhausted = self.exhausted || self.remaining == Some(0.0) || self.used_fraction() == Some(1.0);
         if exhausted {
-            return if reset_passed { LimitState::ResetPending } else { LimitState::Exhausted };
+            return LimitState::Exhausted;
         }
         if self.approaching && !reset_passed && self.used_fraction().is_none() {
             return LimitState::Approaching;
         }
         match self.used_fraction() {
-            Some(_) if reset_passed => LimitState::Available,
             Some(u) if u >= 0.95 => LimitState::Limited,
             Some(u) if u >= approaching_threshold => LimitState::Approaching,
             Some(_) => LimitState::Available,
@@ -202,6 +204,8 @@ mod tests {
         w.resets_at = Some(now - Duration::seconds(5));
         assert_eq!(w.state_at(now, 0.8), LimitState::ResetPending);
         assert!(!w.blocks(now));
+        w.remaining = Some(8.0);
+        assert_eq!(w.state_at(now, 0.8), LimitState::ResetPending);
     }
 
     #[test]

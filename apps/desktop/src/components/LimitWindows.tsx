@@ -6,24 +6,21 @@ import { Tooltip } from "./ui/core";
 
 export function windowState(w: LimitWindow, now = Date.now()): LimitState {
   const resetPassed = w.resets_at ? Date.parse(w.resets_at) <= now : false;
+  if (resetPassed) return "reset_pending";
   const used = usedFraction(w);
-  if (w.exhausted || w.remaining === 0 || used === 1)
-    return resetPassed ? "reset_pending" : "exhausted";
+  if (w.exhausted || w.remaining === 0 || used === 1) return "exhausted";
   if (w.approaching && !resetPassed && used === null) return "approaching";
   if (used === null) {
-    if (w.metric === "credits" && w.remaining !== undefined)
-      return w.remaining <= 0 ? "exhausted" : "available";
+    if (w.metric === "credits" && w.remaining !== undefined) return w.remaining <= 0 ? "exhausted" : "available";
     return "unknown";
   }
-  if (resetPassed) return "available";
   if (used >= 0.95) return "limited";
   if (used >= 0.8) return "approaching";
   return "available";
 }
 
 export function usedFraction(w: LimitWindow): number | null {
-  if (w.used_percent !== undefined && w.used_percent !== null)
-    return Math.max(0, Math.min(1, w.used_percent / 100));
+  if (w.used_percent !== undefined && w.used_percent !== null) return Math.max(0, Math.min(1, w.used_percent / 100));
   if (w.limit !== undefined && w.remaining !== undefined && w.limit > 0)
     return Math.max(0, Math.min(1, (w.limit - w.remaining) / w.limit));
   return null;
@@ -40,12 +37,9 @@ export function useNow(ms = 30_000): number {
 }
 
 function windowValue(w: LimitWindow): string {
-  if (w.metric === "credits")
-    return w.remaining !== undefined ? `${usd(w.remaining)} left` : "—";
-  if (w.metric === "spend")
-    return w.used !== undefined ? `${usd(w.used)} spent` : "—";
-  if (w.used_percent !== undefined)
-    return `${Math.round(w.used_percent)}% used`;
+  if (w.metric === "credits") return w.remaining !== undefined ? `${usd(w.remaining)} left` : "—";
+  if (w.metric === "spend") return w.used !== undefined ? `${usd(w.used)} spent` : "—";
+  if (w.used_percent !== undefined) return `${Math.round(w.used_percent)}% used`;
   if (w.limit !== undefined && w.remaining !== undefined)
     return `${compact(w.limit - w.remaining)} / ${compact(w.limit)}`;
   if (w.exhausted) return "Limit reached";
@@ -72,13 +66,20 @@ export function LimitWindowRow({ w, now }: { w: LimitWindow; now: number }) {
         </Tooltip>
         <span className="min-w-0 flex-1 truncate text-fg">{w.label}</span>
         <span className="font-mono text-[11.5px] text-fg-muted tnum">
-          {windowValue(w)}
+          {state === "reset_pending" ? "Awaiting update" : windowValue(w)}
         </span>
         <ProvenanceTag provenance={w.provenance} />
       </div>
-      {w.metric !== "spend" && (
-        <Meter value={usedFraction(w)} label={w.label} />
-      )}
+      {w.metric !== "spend" && <Meter value={state === "reset_pending" ? null : usedFraction(w)} label={w.label} />}
+      <div className="text-2xs text-fg-subtle" title={new Date(w.observed_at).toLocaleString()}>
+        Observed{" "}
+        {new Date(w.observed_at).toLocaleString([], {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
+      </div>
       {(reset || w.model_scope) && (
         <div className="flex justify-between text-2xs text-fg-subtle">
           <span className="font-mono">{w.model_scope ?? ""}</span>

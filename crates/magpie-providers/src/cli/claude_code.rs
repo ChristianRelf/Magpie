@@ -298,6 +298,7 @@ impl ProviderAdapter for ClaudeCodeAdapter {
                 }
                 "rate_limit_event" => {
                     if let Some(w) = limit_from_event(&self.account.id, &v) {
+                        emit(&events, ProviderEvent::Limits(vec![w.clone()])).await?;
                         outcome.limits.push(w);
                     }
                 }

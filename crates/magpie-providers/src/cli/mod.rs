@@ -3,6 +3,7 @@
 //! invokes documented, non-interactive interfaces.
 
 pub mod claude_code;
+pub mod claude_usage;
 pub mod codex;
 pub mod gemini_cli;
 

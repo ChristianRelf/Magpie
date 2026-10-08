@@ -2567,7 +2567,7 @@ dependencies = [
 
 [[package]]
 name = "magpie"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2584,7 +2584,7 @@ dependencies = [
 
 [[package]]
 name = "magpie-api"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-stream",
  "axum",
@@ -2608,7 +2608,7 @@ dependencies = [
 
 [[package]]
 name = "magpie-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "serde",
@@ -2619,7 +2619,7 @@ dependencies = [
 
 [[package]]
 name = "magpie-desktop"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "magpie-core",
  "magpie-providers",
@@ -2641,7 +2641,7 @@ dependencies = [
 
 [[package]]
 name = "magpie-engine"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2664,7 +2664,7 @@ dependencies = [
 
 [[package]]
 name = "magpie-providers"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2685,7 +2685,7 @@ dependencies = [
 
 [[package]]
 name = "magpie-router"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "magpie-core",
@@ -2696,8 +2696,9 @@ dependencies = [
 
 [[package]]
 name = "magpie-runtime"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
+ "base64 0.22.1",
  "libc",
  "magpie-api",
  "magpie-core",
@@ -2716,7 +2717,7 @@ dependencies = [
 
 [[package]]
 name = "magpie-security"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.23.1",
  "hex",
@@ -2733,7 +2734,7 @@ dependencies = [
 
 [[package]]
 name = "magpie-store"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "magpie-core",

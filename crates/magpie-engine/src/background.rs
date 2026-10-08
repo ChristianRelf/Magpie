@@ -69,6 +69,9 @@ pub(crate) fn spawn(h: Arc<Harness>, mut poke_rx: mpsc::UnboundedReceiver<String
             }
 
             h.sweep_limits();
+            for account in h.list_accounts().into_iter().filter(|a| a.kind == magpie_core::ProviderKind::ClaudeCode && a.enabled) {
+                h.import_claude_usage(&account.id);
+            }
 
             if last_history.elapsed() >= Duration::from_secs(60) {
                 h.refresh_history();

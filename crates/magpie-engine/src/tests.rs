@@ -388,6 +388,49 @@ fn bind_validation() {
 }
 
 #[tokio::test]
+async fn reported_windows_survive_failed_claude_execution() {
+    let f = fixture().await;
+    let acc = connect(&f, ProviderKind::ClaudeCode).await;
+    let mut w = LimitWindow::new("adapter-local-id", "claude.five_hour", "5-hour session", LimitMetric::UsagePercent, Provenance::Reported);
+    w.exhausted = true;
+    w.used_percent = Some(100.0);
+    w.resets_at = Some(now() + chrono::Duration::hours(2));
+    let error = HarnessError::new(ErrorKind::QuotaExhausted, "Allowance reached");
+    f.mocks[&ProviderKind::ClaudeCode].script("sub-top", vec![Script::FailAfterLimits(vec![w.clone()], error)]);
+    assert!(f.h.execute_collect(ExecRequest::simple("hi"), "test".into()).await.is_err());
+    let limits = f.h.limit_windows();
+    let reported = limits.iter().find(|l| l.key == "claude.five_hour").unwrap();
+    assert_eq!(reported.account_id, acc.id);
+    assert_eq!(reported.resets_at, w.resets_at);
+    assert_eq!(reported.used_percent, Some(100.0));
+    assert!(f.h.store.list_limits().unwrap().iter().any(|l| l.key == w.key));
+}
+
+#[tokio::test]
+async fn imports_only_matching_new_claude_statusline_reports() {
+    use magpie_providers::cli::claude_usage::{UsageSnapshot, SNAPSHOT_FILE};
+    let f = fixture().await;
+    let acc = connect(&f, ProviderKind::ClaudeCode).await;
+    let payload = serde_json::json!({"rate_limits":{"five_hour":{"used_percentage":37.0,"resets_at":(now()+chrono::Duration::hours(3)).timestamp()}}});
+    let mut snapshot = UsageSnapshot::from_statusline("another-account", &payload).unwrap();
+    let path = f.h.paths.root.join(SNAPSHOT_FILE);
+    std::fs::write(&path, serde_json::to_vec(&snapshot).unwrap()).unwrap();
+    f.h.import_claude_usage(&acc.id);
+    assert!(f.h.limit_windows().is_empty());
+    snapshot.account_id = acc.id.clone();
+    std::fs::write(&path, serde_json::to_vec(&snapshot).unwrap()).unwrap();
+    f.h.refresh_limits(&acc.id).await.unwrap();
+    let observed = f.h.limit_windows()[0].clone();
+    assert_eq!(observed.used_percent, Some(37.0));
+    assert_eq!(f.h.store.list_limits().unwrap()[0].used_percent, Some(37.0));
+    snapshot.observed_at -= chrono::Duration::seconds(5);
+    snapshot.rate_limits.five_hour.as_mut().unwrap().used_percentage = Some(12.0);
+    std::fs::write(&path, serde_json::to_vec(&snapshot).unwrap()).unwrap();
+    f.h.import_claude_usage(&acc.id);
+    assert_eq!(f.h.limit_windows()[0], observed);
+}
+
+#[tokio::test]
 async fn failed_autostart_does_not_persist_success() {
     let f = fixture().await;
     let before = f.h.settings();

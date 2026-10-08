@@ -1,23 +1,9 @@
 import { useEffect, useState } from "react";
-import {
-  Plus,
-  RefreshCw,
-  Plug,
-  ShieldCheck,
-  ExternalLink,
-  Settings2,
-} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Plus, RefreshCw, Plug, ShieldCheck, ExternalLink, Settings2 } from "lucide-react";
 import type { ProviderAccount } from "@magpie/sdk";
 import { Page } from "@/components/Page";
-import {
-  Button,
-  Badge,
-  EmptyState,
-  Field,
-  Input,
-  Panel,
-  PanelHeader,
-} from "@/components/ui/core";
+import { Button, Badge, EmptyState, Field, Input, Panel, PanelHeader } from "@/components/ui/core";
 import { Dialog, Drawer, SettingRow, Switch } from "@/components/ui/controls";
 import { ConnectionStatusLabel, LimitStatus } from "@/components/ui/feedback";
 import { ProviderMark } from "@/components/ui/marks";
@@ -28,45 +14,107 @@ import { useClient } from "@/lib/harness";
 import { useNav } from "@/lib/nav";
 import { useAction } from "@/lib/action";
 import { BILLING_LABELS, dateTime, titleCase } from "@/lib/format";
-import { openExternal } from "@/lib/desktop";
+import { openExternal, isTauri, claudeUsageStatus, setClaudeUsageReporting } from "@/lib/desktop";
 import { ConnectDialog } from "./ConnectDialog";
 
-function AccountInspector({
-  account,
-  onClose,
-}: {
-  account: ProviderAccount;
-  onClose: () => void;
-}) {
+function ClaudeUsageReporting({ account }: { account: ProviderAccount }) {
+  const action = useAction();
+  const reporting = useQuery({ queryKey: ["claude-usage-reporting"], queryFn: claudeUsageStatus, enabled: isTauri });
+  const ownsBridge = reporting.data?.account_id === account.id;
+  const active = ownsBridge && reporting.data?.enabled;
+  return (
+    <div className="space-y-3 border-t border-border pt-3">
+      <div className="text-xs font-medium">Claude Code usage reporting</div>
+      <p className="text-xs leading-relaxed text-fg-subtle">
+        Read the 5-hour and weekly allowances reported by Claude's official status line. This updates your Claude
+        settings, preserves your existing status line, and makes no extra model requests. Data arrives after a normal
+        Claude Code response on a supported subscription.
+      </p>
+      {!isTauri ? (
+        <p className="text-xs text-fg-subtle">Enable this in the Magpie desktop app.</p>
+      ) : (
+        <>
+          {reporting.isError && (
+            <p role="alert" className="text-xs text-fg-muted">
+              {String(reporting.error)}
+            </p>
+          )}
+          {active && (
+            <p className="text-xs text-fg-muted">
+              Reporting enabled. Use Claude Code normally; its next reported allowance will appear here. Project
+              status-line overrides take precedence.
+            </p>
+          )}
+          {ownsBridge && !active && (
+            <p className="text-xs text-fg-muted">
+              Claude's status line has changed. Disconnect reporting before enabling it again; your current settings
+              will be kept.
+            </p>
+          )}
+          {reporting.data?.account_id && !ownsBridge ? (
+            <div className="space-y-2">
+              <p className="text-xs text-fg-muted">
+                Reporting is linked to another Claude connection. Disconnect it before switching accounts.
+              </p>
+              <Button
+                size="sm"
+                loading={action.busy}
+                onClick={() =>
+                  void action.run(
+                    () => setClaudeUsageReporting(reporting.data!.account_id!, false),
+                    "Claude usage reporting disconnected",
+                    ["claude-usage-reporting"],
+                  )
+                }
+              >
+                Disconnect existing reporting
+              </Button>
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              loading={action.busy}
+              disabled={reporting.isPending || reporting.isError}
+              onClick={() =>
+                void action.run(
+                  async () => {
+                    await setClaudeUsageReporting(account.id, !ownsBridge);
+                  },
+                  ownsBridge ? "Claude usage reporting disconnected" : "Claude usage reporting enabled",
+                  ["claude-usage-reporting", "providers", "limits"],
+                )
+              }
+            >
+              {ownsBridge ? "Disable usage reporting" : "Enable usage reporting"}
+            </Button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function AccountInspector({ account, onClose }: { account: ProviderAccount; onClose: () => void }) {
   const client = useClient();
   const action = useAction();
   const now = useNow();
   const [label, setLabel] = useState(account.label);
   const [key, setKey] = useState("");
   const [remove, setRemove] = useState(false);
-  const invalidations = ["providers", "models", "limits", "status"];
+  const invalidations = ["providers", "models", "limits", "status", "claude-usage-reporting"];
   return (
     <>
-      <Drawer
-        open
-        onOpenChange={(open) => !open && onClose()}
-        title={account.label}
-      >
+      <Drawer open onOpenChange={(open) => !open && onClose()} title={account.label}>
         <div className="space-y-5 p-5">
           <div className="flex items-center gap-3">
             <ProviderMark kind={account.kind} size={40} />
             <div>
               <div className="font-medium">{account.descriptor.name}</div>
-              <ConnectionStatusLabel
-                status={account.status}
-                message={account.status_message}
-              />
+              <ConnectionStatusLabel status={account.status} message={account.status_message} />
             </div>
           </div>
           {account.status_message && (
-            <p className="rounded-md border border-border p-3 text-xs text-fg-muted">
-              {account.status_message}
-            </p>
+            <p className="rounded-md border border-border p-3 text-xs text-fg-muted">{account.status_message}</p>
           )}
           <Panel>
             <SettingRow
@@ -78,21 +126,13 @@ function AccountInspector({
                 disabled={action.busy}
                 label="Enable account"
                 onCheckedChange={(enabled) =>
-                  void action.run(
-                    () => client.updateProvider(account.id, { enabled }),
-                    undefined,
-                    invalidations,
-                  )
+                  void action.run(() => client.updateProvider(account.id, { enabled }), undefined, invalidations)
                 }
               />
             </SettingRow>
           </Panel>
           <Field label="Account name">
-            <Input
-              value={label}
-              maxLength={80}
-              onChange={(e) => setLabel(e.target.value)}
-            />
+            <Input value={label} maxLength={80} onChange={(e) => setLabel(e.target.value)} />
           </Field>
           {account.auth_method === "api_key" && (
             <Field
@@ -140,11 +180,7 @@ function AccountInspector({
             <dt className="text-fg-subtle">Plan</dt>
             <dd>{account.plan ?? "Unavailable"}</dd>
             <dt className="text-fg-subtle">Last verified</dt>
-            <dd>
-              {account.last_verified_at
-                ? dateTime(account.last_verified_at)
-                : "Never"}
-            </dd>
+            <dd>{account.last_verified_at ? dateTime(account.last_verified_at) : "Never"}</dd>
             <dt className="text-fg-subtle">Credential storage</dt>
             <dd>
               {account.auth_method === "cli_delegated"
@@ -155,40 +191,33 @@ function AccountInspector({
             </dd>
             <dt className="text-fg-subtle">Endpoint</dt>
             <dd className="selectable break-all font-mono">
-              {account.base_url ??
-                account.descriptor.default_base_url ??
-                "Official CLI"}
+              {account.base_url ?? account.descriptor.default_base_url ?? "Official CLI"}
             </dd>
           </dl>
           <Panel>
             <PanelHeader title="Reported allowances" />
             <div className="space-y-4 p-4">
               {account.limits?.windows.length ? (
-                account.limits.windows.map((w) => (
-                  <LimitWindowRow key={w.key} w={w} now={now} />
-                ))
+                account.limits.windows.map((w) => <LimitWindowRow key={w.key} w={w} now={now} />)
               ) : (
                 <p className="text-xs text-fg-subtle">
-                  Unavailable. This provider has not reported an allowance or
-                  reset time.
+                  {account.kind === "claude_code"
+                    ? "Waiting for Claude Code to report an allowance. Signing in or refreshing the connection does not fetch subscription limits."
+                    : "Unavailable. This provider has not reported an allowance or reset time."}
                 </p>
               )}
+              {account.kind === "claude_code" && <ClaudeUsageReporting account={account} />}
             </div>
           </Panel>
           <p className="text-xs text-fg-subtle">
-            Activity records cover requests made through Magpie. They do not
-            represent total account usage.
+            Activity records cover requests made through Magpie. They do not represent total account usage.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
               loading={action.busy}
               icon={<ShieldCheck className="size-3.5" />}
               onClick={() =>
-                void action.run(
-                  () => client.verifyProvider(account.id),
-                  "Verification complete",
-                  invalidations,
-                )
+                void action.run(() => client.verifyProvider(account.id), "Verification complete", invalidations)
               }
             >
               Verify connection
@@ -197,11 +226,7 @@ function AccountInspector({
               loading={action.busy}
               icon={<RefreshCw className="size-3.5" />}
               onClick={() =>
-                void action.run(
-                  () => client.refreshProvider(account.id),
-                  "Models refreshed",
-                  invalidations,
-                )
+                void action.run(() => client.refreshProvider(account.id), "Models refreshed", invalidations)
               }
             >
               Refresh models
@@ -211,9 +236,7 @@ function AccountInspector({
             <Button
               variant="ghost"
               icon={<ExternalLink className="size-3.5" />}
-              onClick={() =>
-                void action.run(() => openExternal(account.descriptor.docs_url))
-              }
+              onClick={() => void action.run(() => openExternal(account.descriptor.docs_url))}
             >
               Provider documentation
             </Button>
@@ -237,6 +260,10 @@ function AccountInspector({
               onClick={() =>
                 void action.run(
                   async () => {
+                    if (isTauri && account.kind === "claude_code") {
+                      const reporting = await claudeUsageStatus();
+                      if (reporting.account_id === account.id) await setClaudeUsageReporting(account.id, false);
+                    }
                     await client.deleteProvider(account.id);
                     onClose();
                   },
@@ -275,30 +302,18 @@ export function Providers() {
       title="Providers"
       subtitle={`${accounts.length} connected account${accounts.length === 1 ? "" : "s"}`}
       actions={
-        <Button
-          variant="primary"
-          icon={<Plus className="size-3.5" />}
-          onClick={() => setConnecting(true)}
-        >
+        <Button variant="primary" icon={<Plus className="size-3.5" />} onClick={() => setConnecting(true)}>
           Connect provider
         </Button>
       }
     >
-      <QueryState
-        pending={providers.isLoading}
-        error={providers.error}
-        retry={providers.refetch}
-      />
+      <QueryState pending={providers.isLoading} error={providers.error} retry={providers.refetch} />
       {providers.isSuccess && !accounts.length && (
         <EmptyState
           icon={<Plug />}
           title="Your accounts, one harness"
           description="Connect an official CLI, an API account, or a local model server. Magpie discovers its models and makes them available to your tools."
-          action={
-            <Button onClick={() => setConnecting(true)}>
-              Connect your first provider
-            </Button>
-          }
+          action={<Button onClick={() => setConnecting(true)}>Connect your first provider</Button>}
         />
       )}
       <div className="grid gap-4 p-5 lg:grid-cols-2 xl:grid-cols-3">
@@ -308,39 +323,32 @@ export function Providers() {
               <ProviderMark kind={a.kind} size={34} />
               <div className="min-w-0 flex-1">
                 <h2 className="truncate text-sm font-medium">{a.label}</h2>
-                <p className="truncate text-xs text-fg-subtle">
-                  {a.identity ?? a.descriptor.name}
-                </p>
+                <p className="truncate text-xs text-fg-subtle">{a.identity ?? a.descriptor.name}</p>
               </div>
               <Badge>{BILLING_LABELS[a.billing_mode]}</Badge>
             </div>
             <div className="flex items-center justify-between border-y border-border px-4 py-2.5">
-              <ConnectionStatusLabel
-                status={a.status}
-                message={a.status_message}
-              />
+              <ConnectionStatusLabel status={a.status} message={a.status_message} />
               <span className="text-xs text-fg-subtle">
                 {a.available_model_count} / {a.model_count} models
               </span>
             </div>
             <div className="flex-1 space-y-4 p-4">
               {a.limits?.windows.length ? (
-                a.limits.windows
-                  .slice(0, 3)
-                  .map((w) => <LimitWindowRow key={w.key} w={w} now={now} />)
+                a.limits.windows.slice(0, 3).map((w) => <LimitWindowRow key={w.key} w={w} now={now} />)
               ) : (
                 <div className="space-y-2">
                   <LimitStatus state="unknown" />
                   <p className="text-xs text-fg-subtle">
-                    Allowance and reset data unavailable.
+                    {a.kind === "claude_code"
+                      ? "Waiting for Claude usage data. Enable usage reporting in Manage."
+                      : "Allowance and reset data unavailable."}
                   </p>
                 </div>
               )}
             </div>
             <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
-              <span className="text-2xs text-fg-subtle">
-                {titleCase(a.auth_method)}
-              </span>
+              <span className="text-2xs text-fg-subtle">{titleCase(a.auth_method)}</span>
               <Button
                 variant="ghost"
                 size="xs"
@@ -354,13 +362,7 @@ export function Providers() {
         ))}
       </div>
       <ConnectDialog open={connecting} onOpenChange={setConnecting} />
-      {account && (
-        <AccountInspector
-          key={account.id}
-          account={account}
-          onClose={() => setSelected(null)}
-        />
-      )}
+      {account && <AccountInspector key={account.id} account={account} onClose={() => setSelected(null)} />}
     </Page>
   );
 }

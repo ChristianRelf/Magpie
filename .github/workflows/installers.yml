@@ -67,6 +67,8 @@ jobs:
           NO_AT_BRIDGE: 1
           GTK_USE_PORTAL: 0
         run: dbus-run-session --config-file=scripts/headless-session.conf -- python3 scripts/native-window-test.py
+      - name: Claude usage reporting helper
+        run: node scripts/claude-usage-test.mjs
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: magpie-${{ matrix.name }}

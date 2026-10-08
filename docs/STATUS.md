@@ -2,6 +2,14 @@
 
 Updated 2026-10-08. Implemented code and verified release behaviour are recorded separately.
 
+## Claude Code allowance fix — 0.1.1
+
+- Added opt-in usage reporting in the Claude provider inspector using the official status-line interface. The private snapshot retains only reported 5-hour/weekly percentages, reset timestamps, linked account ID and observation time. No credential extraction, transcript reading or allowance-consuming refresh is used.
+- Existing status-line commands/output and unrelated settings are preserved. Disabling restores the prior status line without overwriting subsequent user edits. Hook restrictions, symlinked settings, Windows shells, portable AppImages and an older running harness are handled explicitly.
+- Rate-limit stream events now persist immediately, even if a request later fails. Expired windows show “Awaiting update” and observation times remain visible.
+- Backend/parser/setting recovery tests and frontend checks passed; the full workspace passed 110 tests before the final platform-specific recovery tests were added. The actual Linux native helper passed fixture checks for quota/reset import, unrelated-field filtering, existing output and absent data. Final cross-platform verification is in progress. Live account reporting has not been certified; Claude supplies status-line quotas only after a normal response on supported plans, subject to CLI trust/settings.
+- Version metadata is now `0.1.1`; published `v0.1` artifacts remain tied to their original tested commit.
+
 ## Completed functionality
 
 - Independent Rust harness with authenticated loopback HTTP/SSE, SQLite migrations, deterministic task classification, capability-aware routing, cancellation, conservative retries/fallback, usage accounting and notifications.

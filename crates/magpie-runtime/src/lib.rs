@@ -15,6 +15,7 @@ use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
 pub use magpie_store::paths;
+pub mod claude_usage;
 
 #[derive(Debug, Clone)]
 pub struct Connection {

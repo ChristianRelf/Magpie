@@ -223,7 +223,7 @@ impl Harness {
                                 biased;
                                 ev = prx.recv(), if channel_open => match ev {
                                     Some(ev) => {
-                                        if !self.forward(ev, &tx, &mut output, &mut tool_calls, &mut usage, &mut ttft, &mut emitted_output, started).await {
+                                        if !self.forward(ev, &cand.model.account_id, &tx, &mut output, &mut tool_calls, &mut usage, &mut ttft, &mut emitted_output, started).await {
                                             // Client went away.
                                             attempt_cancel.cancel();
                                             cancel.cancel();
@@ -235,7 +235,18 @@ impl Harness {
                             }
                         };
                         while let Ok(ev) = prx.try_recv() {
-                            self.forward(ev, &tx, &mut output, &mut tool_calls, &mut usage, &mut ttft, &mut emitted_output, started).await;
+                            self.forward(
+                                ev,
+                                &cand.model.account_id,
+                                &tx,
+                                &mut output,
+                                &mut tool_calls,
+                                &mut usage,
+                                &mut ttft,
+                                &mut emitted_output,
+                                started,
+                            )
+                            .await;
                         }
                         drop(permit);
                         res
@@ -381,6 +392,7 @@ impl Harness {
     async fn forward(
         &self,
         ev: ProviderEvent,
+        account_id: &str,
         tx: &mpsc::Sender<ExecEvent>,
         output: &mut String,
         tool_calls: &mut Vec<ToolCall>,
@@ -404,6 +416,13 @@ impl Harness {
             }
             ProviderEvent::Usage(u) => {
                 usage.merge(&u);
+                None
+            }
+            ProviderEvent::Limits(mut windows) => {
+                for w in &mut windows {
+                    w.account_id = account_id.to_string();
+                }
+                self.apply_limits(account_id, windows);
                 None
             }
             ProviderEvent::ResolvedModel(_) => None,

@@ -14,6 +14,8 @@ Startup registration is opt-in and per-user. The desktop only launches allowlist
 
 CI runs Rust and JavaScript tests and dependency audits. Dependabot proposes dependency/action updates. Report security issues privately to the repository owner; include affected versions and a minimal reproduction, never active credentials.
 
+Claude Code usage reporting is opt-in. It updates only the documented user status-line setting, preserves the previous command, and forwards its stdin/output when configured. A private snapshot contains only the linked Magpie account ID, observation time, and reported allowance percentages/reset timestamps. It never reads Claude credentials or transcripts. The previous status-line command continues to run with the same user privileges it already had; it is not supplied by the webview. Project/managed overrides can prevent reporting.
+
 ## Current dependency audit findings
 
 The 2026-10-08 Rust audit completed with two informational findings in the Linux GTK/Tauri dependency tree: [RUSTSEC-2024-0429](https://rustsec.org/advisories/RUSTSEC-2024-0429.html), an unsound `glib` string-variant iterator fixed in the newer 0.20 line, and [RUSTSEC-2024-0370](https://rustsec.org/advisories/RUSTSEC-2024-0370.html), an unmaintained compile-time macro dependency. The current Tauri GTK3 stack depends on `glib` 0.18. These findings are not suppressed; review upstream fixes or a maintained backport before declaring the dependency audit clean. Magpie code does not directly invoke that iterator, but this is not proof of absence of transitive use. The JavaScript production dependency audit reported no known vulnerabilities.

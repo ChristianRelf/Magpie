@@ -113,6 +113,42 @@ fn app_info() -> AppInfo {
 }
 
 #[tauri::command]
+fn claude_usage_status() -> Result<magpie_runtime::claude_usage::ReportingStatus, String> {
+    magpie_runtime::claude_usage::status(&Paths::resolve(), &magpie_runtime::claude_usage::settings_path()?)
+}
+
+#[tauri::command]
+async fn set_claude_usage_reporting(
+    account_id: String,
+    enabled: bool,
+    state: tauri::State<'_, DesktopState>,
+) -> Result<magpie_runtime::claude_usage::ReportingStatus, String> {
+    let _guard = state.lifecycle.lock().await;
+    let paths = Paths::resolve();
+    if enabled {
+        if let Some(connection) = magpie_runtime::discover(&paths).await {
+            if connection.info.version != VERSION {
+                return Err("Restart the harness in Settings before enabling usage reporting so it uses this app's version.".into());
+            }
+        }
+    }
+    let executable = launcher()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        if !enabled {
+            return magpie_runtime::claude_usage::disable(&paths, &account_id);
+        }
+        let store = magpie_store::Store::open(&paths.database()).map_err(|e| e.to_string())?;
+        let account = store.get_account(&account_id).map_err(|e| e.to_string())?.ok_or("Provider account not found")?;
+        if account.kind != ProviderKind::ClaudeCode || !account.enabled {
+            return Err("Select an enabled Claude Code connection".into());
+        }
+        magpie_runtime::claude_usage::enable(&paths, &magpie_runtime::claude_usage::settings_path()?, &executable, &account_id)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn save_text_file(app: tauri::AppHandle, default_name: String, contents: String) -> Result<Option<String>, String> {
     if contents.len() > 128 * 1024 * 1024 {
         return Err("Export is too large; choose a shorter range".into());
@@ -275,6 +311,18 @@ fn request_exit(app: tauri::AppHandle) {
 }
 
 fn main() {
+    let args: Vec<_> = std::env::args_os().collect();
+    if args.get(1).is_some_and(|a| a == magpie_runtime::claude_usage::FLAG) {
+        let Some(root) = args.get(2).map(PathBuf::from).filter(|p| p.is_absolute()) else {
+            std::process::exit(2);
+        };
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("runtime");
+        if let Err(e) = rt.block_on(magpie_runtime::claude_usage::run(&Paths::at(root))) {
+            eprintln!("{}", magpie_security::redact(&e));
+            std::process::exit(1);
+        }
+        return;
+    }
     // Daemon mode never initialises a webview, tray, display connection or UI runtime.
     if std::env::args().any(|a| a == "--harness") {
         let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().expect("runtime");
@@ -300,6 +348,8 @@ fn main() {
             harness_restart,
             set_window_behaviour,
             app_info,
+            claude_usage_status,
+            set_claude_usage_reporting,
             save_text_file,
             open_cli_login,
             check_for_updates,
