@@ -6,7 +6,7 @@ import { AccountActivity, UsageSourcePicker, useUsageSource } from "@/components
 import { Page, StatTile } from "@/components/Page";
 import { RangePicker, rangeLabel, toQuery, type RangeValue } from "@/components/RangePicker";
 import { BarList, Legend, TimeSeriesChart, type Series } from "@/components/charts";
-import { Button, Panel, PanelHeader } from "@/components/ui/core";
+import { IconButton, Panel, PanelHeader } from "@/components/ui/core";
 import { Select, Segmented } from "@/components/ui/controls";
 import { QueryState } from "@/components/QueryState";
 import { useBreakdown, useModels, useProviders, useTimeseries, useUsageSummary } from "@/lib/queries";
@@ -66,7 +66,6 @@ export function Analytics() {
     return (
       <Page
         title="Analytics"
-        subtitle="Provider-reported account usage"
         actions={
           <>
             <UsageSourcePicker source={source} />
@@ -87,9 +86,9 @@ export function Analytics() {
         <>
           <UsageSourcePicker source={source} />
           <RangePicker value={range} onChange={setRange} />
-          <Button
-            icon={<Download className="size-3.5" />}
-            loading={action.busy}
+          <IconButton
+            label="Export CSV"
+            disabled={action.busy}
             onClick={() =>
               void action.run(async () => {
                 const data = await client.exportUsage({ ...q, format: "csv" });
@@ -97,8 +96,8 @@ export function Analytics() {
               })
             }
           >
-            Export CSV
-          </Button>
+            <Download className="size-4" />
+          </IconButton>
         </>
       }
       toolbar={
@@ -134,7 +133,6 @@ export function Analytics() {
                 })),
             ]}
           />
-          <span className="ml-auto text-2xs text-fg-subtle">Local harness usage</span>
         </>
       }
     >

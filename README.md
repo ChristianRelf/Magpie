@@ -2,16 +2,16 @@
 
 One local harness for compatible AI models. Magpie is a desktop control centre for provider connections, model routing, execution telemetry and developer integrations. It has no chat interface and needs no hosted Magpie account.
 
-The Rust service runs independently of the React/Tauri window. Connect an API key, a local model server, or an already authenticated official provider CLI. Create a scoped key in **Integrations**, then send work to the local API.
+The Rust service runs independently of the React/Tauri window. Connect an API key, a local model server, or an official provider CLI. Save separate Codex sign-ins or Claude Code setup tokens and let routing select an eligible connection. Create a scoped key in **Integrations**, then send work to the local API.
 
 ## Getting started
 
 1. Download an installer from [the latest Magpie release](https://github.com/ChristianRelf/Magpie/releases/latest), install it and open Magpie.
-2. Connect a provider. API credentials go into your operating system's credential manager. CLI sign-in stays with the official CLI.
+2. Connect a provider. API keys and Claude Code setup tokens go into your operating system's credential manager. Separate Codex browser sign-ins use the official CLI with required OS credential storage; an existing shared CLI login remains available.
 3. Choose a routing preset. Background operation and start on login are opt-in.
 4. Create an integration key and copy the endpoint from Integrations.
 
-The control centre includes provider and model management, execution inspection, routing priorities, scoped integration keys, persistent settings, Recharts telemetry graphs and a year-long token activity grid. Daily, weekly and cumulative heatmap modes use local execution records, with hover details and date selection. Missing provider quotas remain unavailable.
+The control centre includes provider and model management, execution inspection, routing priorities, scoped integration keys and persistent settings. Overview shows connected plans, reported allowances and upcoming resets. Analytics includes Recharts telemetry graphs and a year-long token activity grid with daily, weekly and cumulative modes, hover details and date selection. Choose provider-reported Codex account activity or local Magpie execution records; the two sources are kept separate. Missing provider quotas remain unavailable.
 
 The release includes Linux x64 `.deb` and AppImage, Windows x64 NSIS, and Apple Silicon/Intel macOS DMG installers, with SHA-256 checksums. All four platform build/test jobs passed. These builds have no production code-signing/notarisation or configured signed update channel. Read the release notes and [verification record](docs/STATUS.md) for the remaining integration, installation and dependency-review limitations.
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Copy, ExternalLink, Eye, EyeOff, RefreshCw, ShieldCheck, Terminal } from "lucide-react";
 import type { BillingMode, CliAuthMode, CliStatus, ProviderDescriptor, ProviderKind } from "@magpie/sdk";
-import { Button, Field, Input, cn } from "@/components/ui/core";
+import { Button, Field, IconButton, Input, cn } from "@/components/ui/core";
 import { Dialog, Select } from "@/components/ui/controls";
 import { ProviderMark } from "@/components/ui/marks";
 import { errorMessage, useToast } from "@/components/ui/feedback";
@@ -33,15 +33,14 @@ function CopyLine({ text }: { text: string }) {
   const toast = useToast();
   return (
     <div className="flex items-center gap-2 rounded-md border border-border-strong bg-bg py-1 pr-1 pl-2.5">
-      <code className="min-w-0 flex-1 truncate font-mono text-[12px] text-fg">{text}</code>
-      <Button
+      <code className="min-w-0 flex-1 truncate font-mono text-xs text-fg">{text}</code>
+      <IconButton
+        label="Copy command"
         size="xs"
-        variant="ghost"
-        icon={<Copy className="size-3" />}
         onClick={() => void copyText(text).then(() => toast({ title: "Copied", tone: "success" }))}
       >
-        Copy
-      </Button>
+        <Copy className="size-4" />
+      </IconButton>
     </div>
   );
 }
@@ -338,7 +337,7 @@ export function ConnectDialog({
                     >
                       <ProviderMark kind={k} size={26} />
                       <div className="min-w-0">
-                        <div className="truncate text-[12.5px] font-medium">{desc.name}</div>
+                        <div className="truncate text-sm font-medium">{desc.name}</div>
                         <div className="truncate text-2xs text-fg-subtle">
                           {taken
                             ? "Connected"

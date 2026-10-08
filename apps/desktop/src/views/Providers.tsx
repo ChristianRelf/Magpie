@@ -3,9 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Plus, RefreshCw, Plug, ShieldCheck, ExternalLink, Settings2 } from "lucide-react";
 import type { ProviderAccount, ProviderKind } from "@magpie/sdk";
 import { Page } from "@/components/Page";
-import { Button, Badge, EmptyState, Field, Input, Panel, PanelHeader } from "@/components/ui/core";
+import { Button, EmptyState, Field, IconButton, Input, Panel, PanelHeader } from "@/components/ui/core";
 import { Dialog, Drawer, SettingRow, Switch } from "@/components/ui/controls";
-import { ConnectionStatusLabel, LimitStatus } from "@/components/ui/feedback";
+import { ConnectionStatusLabel } from "@/components/ui/feedback";
 import { ProviderMark } from "@/components/ui/marks";
 import { LimitWindowRow, useNow } from "@/components/LimitWindows";
 import { QueryState } from "@/components/QueryState";
@@ -327,6 +327,9 @@ export function Providers() {
     if (param === "connect") {
       setConnecting(true);
       navigate("providers");
+    } else if (param) {
+      setSelected(param);
+      navigate("providers");
     }
   }, [param, navigate]);
   const accounts = providers.data?.accounts ?? [];
@@ -364,9 +367,11 @@ export function Providers() {
               <ProviderMark kind={a.kind} size={34} />
               <div className="min-w-0 flex-1">
                 <h2 className="truncate text-sm font-medium">{a.label}</h2>
-                <p className="truncate text-xs text-fg-subtle">{a.identity ?? a.descriptor.name}</p>
+                <p className="mt-1 truncate text-xs text-fg-subtle">{a.plan ?? BILLING_LABELS[a.billing_mode]}</p>
               </div>
-              <Badge>{BILLING_LABELS[a.billing_mode]}</Badge>
+              <IconButton label={`Manage ${a.label}`} onClick={() => setSelected(a.id)}>
+                <Settings2 className="size-4" />
+              </IconButton>
             </div>
             <div className="flex items-center justify-between border-y border-border px-4 py-2.5">
               <ConnectionStatusLabel status={a.status} message={a.status_message} />
@@ -379,33 +384,20 @@ export function Providers() {
                 a.limits.windows.slice(0, 3).map((w) => <LimitWindowRow key={w.key} w={w} now={now} />)
               ) : (
                 <div className="space-y-2">
-                  <LimitStatus state="unknown" />
                   <p className="text-xs text-fg-subtle">
                     {a.kind === "claude_code"
                       ? a.auth_method === "cli_token"
                         ? "Limits appear when this credential's executions report them."
-                        : "Waiting for Claude usage data. Enable usage reporting in Manage."
-                      : "Allowance and reset data unavailable."}
+                        : "Waiting for Claude usage data."
+                      : "Allowance not reported."}
                   </p>
+                  {a.kind === "claude_code" && a.auth_method === "cli_delegated" && (
+                    <Button size="xs" variant="ghost" onClick={() => setSelected(a.id)}>
+                      Usage reporting
+                    </Button>
+                  )}
                 </div>
               )}
-            </div>
-            <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
-              <span className="text-2xs text-fg-subtle">
-                {a.options.auth_mode === "isolated"
-                  ? "Separate sign-in"
-                  : a.auth_method === "cli_token"
-                    ? "Saved token"
-                    : titleCase(a.auth_method)}
-              </span>
-              <Button
-                variant="ghost"
-                size="xs"
-                icon={<Settings2 className="size-3" />}
-                onClick={() => setSelected(a.id)}
-              >
-                Manage
-              </Button>
             </div>
           </Panel>
         ))}

@@ -43,17 +43,10 @@ export function SettingRow({
   disabled?: boolean;
 }) {
   return (
-    <div
-      className={cn(
-        "flex items-center justify-between gap-6 px-4 py-3",
-        disabled && "opacity-50",
-      )}
-    >
+    <div className={cn("flex items-center justify-between gap-6 px-4 py-3", disabled && "opacity-50")}>
       <div className="min-w-0">
-        <div className="text-[13px] text-fg">{title}</div>
-        {description && (
-          <div className="mt-0.5 text-xs text-fg-subtle">{description}</div>
-        )}
+        <div className="text-sm text-fg">{title}</div>
+        {description && <div className="mt-0.5 text-xs text-fg-subtle">{description}</div>}
       </div>
       <div className="flex shrink-0 items-center gap-2">{children}</div>
     </div>
@@ -86,10 +79,7 @@ export function Segmented<T extends string>({
     <div
       role="radiogroup"
       aria-label={label}
-      className={cn(
-        "inline-flex rounded-md border border-border bg-bg-subtle p-0.5",
-        className,
-      )}
+      className={cn("inline-flex rounded-md border border-border bg-bg-subtle p-0.5", className)}
     >
       {options.map((o) => {
         const active = o.value === value;
@@ -102,7 +92,7 @@ export function Segmented<T extends string>({
             onClick={() => onChange(o.value)}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-[5px] font-medium whitespace-nowrap transition-colors duration-150",
-              size === "xs" ? "h-5 px-1.5 text-2xs" : "h-6 px-2.5 text-xs",
+              size === "xs" ? "h-6 px-2 text-2xs" : "h-8 px-3 text-xs",
               active
                 ? "bg-surface-3 text-fg shadow-[inset_0_0_0_1px_var(--border-strong)]"
                 : "text-fg-subtle hover:text-fg",
@@ -148,7 +138,7 @@ export function Select({
         aria-label={label}
         className={cn(
           "inline-flex w-full items-center justify-between gap-2 rounded-md border border-border-strong bg-bg px-2.5 text-left text-fg outline-none focus:border-fg-subtle data-[placeholder]:text-fg-faint",
-          size === "sm" ? "h-7 text-xs" : "h-8 text-[13px]",
+          size === "sm" ? "h-9 text-xs" : "h-10 text-sm",
           className,
         )}
       >
@@ -170,17 +160,13 @@ export function Select({
               <RSelect.Item
                 key={o.value}
                 value={o.value}
-                className="relative flex cursor-default items-center gap-2 rounded-[5px] py-1.5 pr-2 pl-7 text-[13px] text-fg outline-none select-none data-[highlighted]:bg-surface-3"
+                className="relative flex cursor-default items-center gap-2 rounded-[5px] py-1.5 pr-2 pl-7 text-sm text-fg outline-none select-none data-[highlighted]:bg-surface-3"
               >
                 <RSelect.ItemIndicator className="absolute left-2">
                   <Check className="size-3.5" strokeWidth={2.5} />
                 </RSelect.ItemIndicator>
                 <RSelect.ItemText>{o.label}</RSelect.ItemText>
-                {o.hint && (
-                  <span className="ml-auto pl-3 text-2xs text-fg-subtle">
-                    {o.hint}
-                  </span>
-                )}
+                {o.hint && <span className="ml-auto pl-3 text-2xs text-fg-subtle">{o.hint}</span>}
               </RSelect.Item>
             ))}
           </RSelect.Viewport>
@@ -255,13 +241,9 @@ export function Dialog({
         >
           <div className="flex items-start gap-3 px-5 pt-4 pb-3">
             <div className="min-w-0 flex-1">
-              <RDialog.Title className="text-[14px] font-semibold text-fg">
-                {title}
-              </RDialog.Title>
+              <RDialog.Title className="text-base font-semibold text-fg">{title}</RDialog.Title>
               {description ? (
-                <RDialog.Description className="mt-1 text-xs text-fg-subtle">
-                  {description}
-                </RDialog.Description>
+                <RDialog.Description className="mt-1 text-xs text-fg-subtle">{description}</RDialog.Description>
               ) : (
                 <RDialog.Description className="sr-only">
                   {typeof title === "string" ? title : "Dialog"}
@@ -275,13 +257,9 @@ export function Dialog({
               <X className="size-4" />
             </RDialog.Close>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">
-            {children}
-          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">{children}</div>
           {footer && (
-            <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
-              {footer}
-            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">{footer}</div>
           )}
         </RDialog.Content>
       </RDialog.Portal>
@@ -309,12 +287,8 @@ export function Drawer({
         <RDialog.Overlay className="fade-in fixed inset-0 z-40 bg-[var(--overlay)]" />
         <RDialog.Content className="fixed top-0 right-0 bottom-0 z-50 flex w-[560px] max-w-[92vw] animate-[drawer-in_200ms_var(--ease-out-soft)] flex-col border-l border-border-strong bg-surface shadow-panel outline-none">
           <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
-            <RDialog.Title className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-              {title}
-            </RDialog.Title>
-            <RDialog.Description className="sr-only">
-              Details
-            </RDialog.Description>
+            <RDialog.Title className="min-w-0 flex-1 truncate text-sm font-semibold">{title}</RDialog.Title>
+            <RDialog.Description className="sr-only">Details</RDialog.Description>
             {actions}
             <RDialog.Close
               className="rounded-md p-1 text-fg-subtle hover:bg-surface-2 hover:text-fg"

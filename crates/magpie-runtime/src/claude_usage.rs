@@ -120,10 +120,12 @@ fn status_shell(command: &str) -> tokio::process::Command {
         }
         if let Some(bash) = candidates.into_iter().find(|p| p.is_file()) {
             let mut c = tokio::process::Command::new(bash);
+            c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
             c.args(["-c", command]);
             return c;
         }
         let mut c = tokio::process::Command::new("powershell.exe");
+        c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
         let script = format!("$OutputEncoding=[System.Text.UTF8Encoding]::new($false); [Console]::InputEncoding=$OutputEncoding; [Console]::OutputEncoding=$OutputEncoding; {command}");
         c.args(["-NoProfile", "-NonInteractive", "-EncodedCommand", &powershell_script(&script)]);
         c

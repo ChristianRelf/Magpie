@@ -4,6 +4,10 @@ import { readFile } from "node:fs/promises";
 test("first run, real local provider, execution, telemetry, settings and key revocation", async ({ page, request }) => {
   const failures: string[] = [];
   page.on("pageerror", (e) => failures.push(e.message));
+  let settingsReads = 0;
+  page.on("request", (r) => {
+    if (new URL(r.url()).pathname === "/v1/settings" && r.method() === "GET") settingsReads++;
+  });
   const { url, token } = JSON.parse(await readFile(".e2e-connection.json", "utf8"));
   const headers = { Authorization: `Bearer ${token}` };
   await page.goto("/");
@@ -30,6 +34,9 @@ test("first run, real local provider, execution, telemetry, settings and key rev
   const result = await response.json();
   expect(result.output_text).toBe("Test fixture response.");
   expect(result.usage.input_tokens).toBe(12);
+  // Let the settings cache become stale: changing tabs must not repeat OS probes.
+  await page.waitForTimeout(5_100);
+  const readsBeforeNavigation = settingsReads;
   for (const name of [
     "Providers",
     "Models",
@@ -43,9 +50,22 @@ test("first run, real local provider, execution, telemetry, settings and key rev
     await page.getByRole("button", { name, exact: true }).click();
     await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
   }
+  expect(settingsReads).toBe(readsBeforeNavigation);
+  await expect(page.getByRole("heading", { name: "Current plans", exact: true })).toBeVisible();
+  await expect(page.getByRole("article", { name: "Isolated test provider plan" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Token activity", exact: true })).toHaveCount(0);
+  await page.screenshot({ path: "test-results/overview.png", fullPage: true });
+  const navigation = page.getByRole("navigation", { name: "Main" });
+  await expect(navigation).toHaveCSS("width", "256px");
+  await page.getByRole("button", { name: "Collapse sidebar", exact: true }).click();
+  await expect(navigation).toHaveCSS("width", "72px");
+  await page.reload();
+  await expect(navigation).toHaveCSS("width", "72px");
+  await page.getByRole("button", { name: "Expand sidebar", exact: true }).click();
+  await expect(navigation).toHaveCSS("width", "256px");
+  await page.getByRole("button", { name: "Analytics", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Token activity", exact: true })).toBeVisible();
   for (const name of ["Weekly", "Cumulative", "Daily"]) await page.getByRole("radio", { name, exact: true }).click();
-  await page.screenshot({ path: "test-results/overview.png", fullPage: true });
   await page.getByRole("button", { name: "Models", exact: true }).click();
   await page.getByRole("button", { name: "Favourite model", exact: true }).click();
   await expect(page.getByRole("button", { name: "Remove favourite", exact: true })).toBeVisible();
@@ -144,7 +164,7 @@ test("first run, real local provider, execution, telemetry, settings and key rev
     return route.fulfill({ json: { account: {}, models: null } });
   });
   await page.reload();
-  await page.getByRole("button", { name: "Overview", exact: true }).click();
+  await page.getByRole("button", { name: "Analytics", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Usage source" })).toContainText("Codex test fixture account");
   await expect(page.getByRole("img", { name: /Token activity over the last year: 5,555 tokens/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Account token usage", exact: true })).toBeVisible();
