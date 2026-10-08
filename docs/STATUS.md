@@ -16,7 +16,7 @@ Updated 2026-10-08. Implemented code and verified release behaviour are recorded
 - Overview and Analytics now default to connected Codex account usage, with a persistent source selector for Magpie requests. Account totals are kept separate to prevent double counting. Recharts heatmap/time-series views use real daily reports, with unknown dates, UTC boundaries, snapshot deduplication, manual refresh and account CSV export.
 - Account monitoring runs every two minutes, including when the harness is idle, with existing provider-polling opt-out and failure backoff. Account usage is fetched independently of quota endpoint success.
 - A read-only check against installed Codex 0.156.1 returned daily usage buckets. No live model request was made and no authentication material was extracted. This verifies this machine's supported account-history endpoint, not arbitrary accounts or real-time reporting guarantees.
-- TypeScript and all seven UI/four SDK tests passed. Browser/native verification is in progress. Account-wide request counts, model breakdowns, latency and costs are not supplied by this endpoint and are not fabricated.
+- TypeScript, all 113 Rust tests and all seven UI/four SDK tests passed locally. The expanded browser end-to-end test passed source selection, real chart rendering from explicit fixtures, refresh, source persistence and separation from harness totals; its screenshot was inspected. The [installer matrix](https://github.com/ChristianRelf/Magpie/actions/runs/37713068413) passed all four platforms, including native lifecycle/Claude helper checks and the Linux WebKit window test. The downloaded Linux AppImage also passed the native helper fixtures. The [final code checks](https://github.com/ChristianRelf/Magpie/actions/runs/37713041509) passed on the same source commit: 113 Rust tests, frontend/SDK checks, lifecycle, expanded browser flow and dependency audits. The first runner downloaded Ubuntu packages very slowly and was restarted; the second attempt passed. The two previously documented Rust informational advisories remain. Account-wide request counts, model breakdowns, latency and costs are not supplied by this endpoint and are not fabricated.
 
 ## Completed functionality
 
@@ -32,7 +32,7 @@ Updated 2026-10-08. Implemented code and verified release behaviour are recorded
 - Explicit agent scope for local filesystem workflows; Codex/Gemini agent execution requires an explicit working directory. Integration keys cannot cancel another client's execution by ID.
 - README, API/SDK examples, architecture, security, provider limitations, release guide, dependency update configuration and installer/check workflows.
 
-## Verified behaviour
+## Original v0.1 verification
 
 - **104 Rust tests passed on final Linux CI**, covering API authentication/scopes, adapter conversion, route selection, fallback, usage/costs, limits, secret storage, persistence/migrations and engine error cases; includes two native command tests. The local full workspace run passed 103 tests before the final redirect regression was added.
 - The provider suite also passed its new redirect regression (26 provider tests): custom authentication headers cannot follow HTTP redirects to another endpoint.
@@ -43,9 +43,12 @@ Updated 2026-10-08. Implemented code and verified release behaviour are recorded
 - Final Linux `.deb`, AppImage and standalone CLI builds completed from `493c3db`, including the quota-provenance and redirect corrections.
 - The final AppImage passed authenticated lifecycle checks with the final release CLI: scoped access, durable settings across restart, duplicate-process protection and graceful shutdown without a display. Delivery packages and SHA-256 checksums are available in `/srv/codex/cache/magpie/delivery` on the build machine.
 - JavaScript production dependency audit: no known vulnerabilities. Rust audit completed with two informational transitive GTK findings; see SECURITY.md. Do not describe the Rust audit as clean.
-- Commits are pushed to `origin/main` as requested. No live provider calls, paid execution or production signing/notarisation have been claimed.
+- Commits are pushed to `origin/main` as requested. No paid model execution or production signing/notarisation have been claimed; the read-only account metadata checks are recorded above.
 
-## Published release
+## Published releases
+
+- [Magpie v0.1.2](https://github.com/ChristianRelf/Magpie/releases/tag/v0.1.2) is the latest release, published on 2026-10-08 from `5593a88c7afdda3c8c84be7d81bb6cf099412989`. Five Windows/macOS/Linux installers plus `SHA256SUMS` and `release-manifest.json` are attached; all seven uploaded digests matched their tested local artifacts before publication. It includes the Codex account-chart fix and the Claude reporting fix from v0.1.1. Builds remain unsigned/unnotarised with manual updates.
+- [Magpie v0.1.1](https://github.com/ChristianRelf/Magpie/releases/tag/v0.1.1) contains the Claude allowance fix and remains available. Its verified source and builds are recorded above.
 
 - [Magpie v0.1](https://github.com/ChristianRelf/Magpie/releases/tag/v0.1) was published on 2026-10-08 at the user's request. Its application version is `0.1.0`; the release tag points to the tested source commit `493c3dbf79b85721f87ebe1414d0a28c76f99ea6`.
 - Five unchanged CI installers are attached: Linux x64 `.deb`/AppImage, Windows x64 NSIS, and Apple Silicon/Intel macOS DMGs. `SHA256SUMS` and `release-manifest.json` record hashes and build provenance. All seven uploaded asset digests were verified against local files before publication.
