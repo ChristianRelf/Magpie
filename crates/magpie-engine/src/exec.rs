@@ -191,6 +191,9 @@ impl Harness {
             let attempt_started = now();
             let attempt_clock = Instant::now();
             record.model = Some(cand.model.clone());
+            if let Some(active) = self.active.write().get_mut(&id) {
+                active.summary.model = record.model.clone();
+            }
             self.mark_activity(&cand.model.account_id);
 
             let result = match self.adapter_for(&cand.model.account_id) {

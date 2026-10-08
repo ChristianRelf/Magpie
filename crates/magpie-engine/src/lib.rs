@@ -87,6 +87,7 @@ pub struct Harness {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct HarnessStatus {
+    pub features: &'static [&'static str],
     pub product: &'static str,
     pub version: &'static str,
     pub api_version: u32,
@@ -172,6 +173,7 @@ impl Harness {
         let accounts = self.accounts.read();
         let models = self.list_models();
         HarnessStatus {
+            features: &["auth_profiles"],
             product: PRODUCT_NAME,
             version: VERSION,
             api_version: API_VERSION,

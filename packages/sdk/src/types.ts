@@ -373,6 +373,7 @@ export interface ProviderUsageReport {
 }
 
 export interface HarnessStatus {
+  features?: string[];
   product: string;
   version: string;
   api_version: number;

@@ -130,6 +130,13 @@ pub fn route(input: &RouteInput) -> HarnessResult<RoutingDecision> {
         }
     }
     let pinned_keys: Vec<String> = pinned.as_ref().map(|(_, f)| f.iter().map(|m| m.key.clone()).collect()).unwrap_or_default();
+    // An exhausted/expired subscription still defines a billing boundary.
+    // Otherwise a *new* request would silently select an API after all saved
+    // subscription credentials became unavailable, bypassing fallback opt-in.
+    let has_subscription = input.models.iter().any(|m| m.billing_mode == BillingMode::Subscription);
+    let explicit_paid_model =
+        pinned.as_ref().is_some_and(|(_, models)| !models.is_empty() && models.iter().all(|m| m.billing_mode.is_billable()));
+    let permit_paid_switch = cfg.allow_subscription_to_api || allow_billable_req == Some(true) || explicit_paid_model;
 
     let w = weights(preset, cl.complexity, cfg.quality_bias);
     let needed_context = cl.estimated_input_tokens + cl.estimated_output_tokens;
@@ -184,6 +191,10 @@ pub fn route(input: &RouteInput) -> HarnessResult<RoutingDecision> {
             continue;
         }
         let billable = m.billing_mode.is_billable();
+        if billable && has_subscription && !permit_paid_switch {
+            reject("Subscription-to-API switching requires opt-in in Routing or allow_billable on this request".into(), &mut rejected);
+            continue;
+        }
         if billable && !cfg.allow_metered && allow_billable_req != Some(true) && !is_pinned {
             reject("Metered API usage is disabled for automatic routing".into(), &mut rejected);
             continue;

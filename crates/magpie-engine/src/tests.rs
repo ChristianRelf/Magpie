@@ -629,3 +629,41 @@ async fn saved_accounts_respect_manual_no_fallback_and_partial_stream_safety() {
         assert_eq!(f.mocks[&ProviderKind::ClaudeCode].calls.load(Ordering::SeqCst), 1);
     }
 }
+
+#[tokio::test]
+async fn cannot_disconnect_a_saved_credential_while_a_fallback_is_using_it() {
+    let f = fixture().await;
+    let primary =
+        f.h.connect(profile_request(
+            ProviderKind::ClaudeCode,
+            "Primary",
+            CliAuthMode::SavedToken,
+            Some("sk-ant-oat01-primary-test-credential"),
+        ))
+        .await
+        .unwrap();
+    let backup = f
+        .h
+        .connect(profile_request(ProviderKind::ClaudeCode, "Backup", CliAuthMode::SavedToken, Some("sk-ant-oat01-backup-test-credential")))
+        .await
+        .unwrap();
+    f.mocks[&ProviderKind::ClaudeCode].script(
+        "sub-top",
+        vec![Script::fail(ErrorKind::Authentication), Script::Delay(Duration::from_secs(30), Box::new(Script::text("ok")))],
+    );
+    let mut req = ExecRequest::simple("test");
+    req.model = ModelInfo::make_key(&primary.id, "sub-top");
+    req.preferences.allow_fallback = Some(true);
+    let mut handle = f.h.execute(req, "test".into()).await.unwrap();
+    while let Some(event) = handle.events.recv().await {
+        if matches!(event, ExecEvent::RoutingChanged { .. }) {
+            break;
+        }
+    }
+    assert_eq!(f.h.active.read()[&handle.id].summary.model.as_ref().unwrap().account_id, backup.id);
+    assert_eq!(f.h.delete_account(&backup.id).await.unwrap_err().kind, ErrorKind::InvalidRequest);
+    assert!(f.h.secrets.get(&backup.id, None).unwrap().is_some());
+    assert!(f.h.cancel(&handle.id));
+    while handle.events.recv().await.is_some() {}
+    f.h.delete_account(&backup.id).await.unwrap();
+}
