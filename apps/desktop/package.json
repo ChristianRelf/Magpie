@@ -36,7 +36,8 @@
     "lucide-react": "^1.52.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "recharts": "^3.10.1"
+    "recharts": "^3.10.1",
+    "simple-icons": "16.34.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",

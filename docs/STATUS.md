@@ -2,6 +2,12 @@
 
 Updated 2026-10-08. Implemented code and verified release behaviour are recorded separately.
 
+## Provider identity marks — unreleased
+
+- Replaced the shared geometric provider glyphs with locally bundled Simple Icons 16.34.0. Claude Code, Anthropic, Gemini, OpenRouter, Mistral, DeepSeek, Ollama and LM Studio use their distinct brand marks. OpenAI/Codex and Groq use monochrome paths from their official repositories because they are absent from the current Simple Icons catalogue. Custom endpoints retain a generic code icon.
+- Fixed OpenAI's JSON provider name to match the SDK, CLI and database (`openai`); the old `open_ai` spelling remains accepted when reading existing data. This restores OpenAI API in the provider picker and its correct icon throughout the desktop.
+- TypeScript, the production UI build, Rust formatting and all 13 core tests passed locally. The control-centre browser scenario now checks every real provider descriptor appears and opens the OpenAI connection form; it passed against the rebuilt harness. All 13 provider marks were inspected in dark and light themes with no browser errors. No live provider connection was made.
+
 ## Saved authentication profiles and desktop refinement — 0.1.3
 
 - Integrated the revised desktop with saved authentication: Overview focuses on connected plans, reported allowances and upcoming resets; token charts remain in Analytics. Shared components use the updated neutral surfaces and larger type, provider management uses labelled icon controls, and the sidebar keeps icons fixed during collapse. The plans browser scenario covers reported/unknown allowances, navigation, both themes, minimum window size and reduced motion.

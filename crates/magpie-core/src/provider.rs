@@ -9,6 +9,7 @@ use crate::Timestamp;
 #[serde(rename_all = "snake_case")]
 pub enum ProviderKind {
     /// OpenAI Platform API, authenticated with an API key.
+    #[serde(rename = "openai", alias = "open_ai")]
     OpenAi,
     /// Anthropic API, authenticated with an API key.
     Anthropic,
@@ -385,4 +386,23 @@ pub struct VerifiedIdentity {
     pub plan: Option<String>,
     pub billing_mode: Option<BillingMode>,
     pub detail: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProviderKind;
+
+    #[test]
+    fn provider_wire_names_match_persisted_and_cli_names() {
+        for kind in ProviderKind::ALL {
+            let wire = serde_json::to_value(kind).unwrap();
+            assert_eq!(wire.as_str(), Some(kind.as_str()));
+            assert_eq!(serde_json::from_value::<ProviderKind>(wire).unwrap(), kind);
+        }
+    }
+
+    #[test]
+    fn legacy_openai_wire_name_remains_readable() {
+        assert_eq!(serde_json::from_str::<ProviderKind>(r#""open_ai""#).unwrap(), ProviderKind::OpenAi);
+    }
 }
