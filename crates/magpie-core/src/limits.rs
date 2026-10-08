@@ -49,6 +49,9 @@ pub struct LimitWindow {
     /// Set when the provider told us the limit was hit.
     #[serde(default)]
     pub exhausted: bool,
+    /// Qualitative provider warning; does not imply a known percentage.
+    #[serde(default)]
+    pub approaching: bool,
     pub observed_at: Timestamp,
 }
 
@@ -88,6 +91,9 @@ impl LimitWindow {
         let exhausted = self.exhausted || self.remaining == Some(0.0) || self.used_fraction() == Some(1.0);
         if exhausted {
             return if reset_passed { LimitState::ResetPending } else { LimitState::Exhausted };
+        }
+        if self.approaching && !reset_passed && self.used_fraction().is_none() {
+            return LimitState::Approaching;
         }
         match self.used_fraction() {
             Some(_) if reset_passed => LimitState::Available,
@@ -147,6 +153,7 @@ impl LimitWindow {
             resets_at: None,
             provenance,
             exhausted: false,
+            approaching: false,
             observed_at: crate::now(),
         }
     }
@@ -172,6 +179,7 @@ mod tests {
             resets_at: None,
             provenance: Provenance::Reported,
             exhausted: false,
+            approaching: false,
             observed_at: crate::now(),
         }
     }

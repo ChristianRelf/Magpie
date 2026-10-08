@@ -71,6 +71,20 @@ fn filesystem_cli_requires_explicit_agent_context() {
     assert_eq!(decision.selected().unwrap().model.provider, ProviderKind::CodexCli);
 }
 
+#[test]
+fn preservation_ignores_estimated_and_expired_allowances() {
+    let models = inventory();
+    let cfg = RoutingConfig { preserve_premium_percent: Some(20.0), preset: RoutingPreset::BestQuality, ..Default::default() };
+    let req = ExecRequest::simple("What is 2+2?");
+    let mut window = LimitWindow::new("sub", "weekly", "Weekly", LimitMetric::UsagePercent, Provenance::Estimated);
+    window.used_percent = Some(90.0);
+    assert_eq!(run(&req, &models, &cfg, &[window.clone()]).unwrap().selected().unwrap().model.account_id, "sub");
+    window.provenance = Provenance::Reported;
+    assert_ne!(run(&req, &models, &cfg, &[window.clone()]).unwrap().selected().unwrap().model.account_id, "sub");
+    window.resets_at = Some(now() - chrono::Duration::minutes(1));
+    assert_eq!(run(&req, &models, &cfg, &[window]).unwrap().selected().unwrap().model.account_id, "sub");
+}
+
 fn run(req: &ExecRequest, models: &[ModelInfo], cfg: &RoutingConfig, limits: &[LimitWindow]) -> HarnessResult<RoutingDecision> {
     let history = HashMap::new();
     route(&RouteInput { request: req, models, config: cfg, limits, history: &history, now: now() })

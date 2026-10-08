@@ -181,6 +181,7 @@ export interface LimitWindow {
   resets_at?: string;
   provenance: Provenance;
   exhausted: boolean;
+  approaching?: boolean;
   observed_at: string;
 }
 

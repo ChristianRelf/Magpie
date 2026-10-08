@@ -203,8 +203,11 @@ pub fn route(input: &RouteInput) -> HarnessResult<RoutingDecision> {
         }
 
         // Known remaining allowance (most constrained window).
-        let remaining =
-            windows.iter().filter_map(|w| w.remaining_fraction()).fold(None, |acc: Option<f64>, r| Some(acc.map_or(r, |a| a.min(r))));
+        let remaining = windows
+            .iter()
+            .filter(|w| w.provenance == Provenance::Reported && w.resets_at.is_none_or(|reset| reset > input.now))
+            .filter_map(|w| w.remaining_fraction())
+            .fold(None, |acc: Option<f64>, r| Some(acc.map_or(r, |a| a.min(r))));
         let reserve =
             m.preference.reserve_percent.or(if m.model.tier == QualityTier::Frontier { cfg.preserve_premium_percent } else { None });
         if let (Some(pct), Some(rem)) = (reserve, remaining) {

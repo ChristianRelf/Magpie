@@ -135,11 +135,7 @@ pub(crate) fn limit_from_event(account_id: &str, v: &Value) -> Option<LimitWindo
     w.resets_at = resets;
     w.used_percent = utilization.map(|u| if u <= 1.0 { u * 100.0 } else { u });
     w.exhausted = status == "rejected";
-    if w.used_percent.is_none() && status == "allowed_warning" {
-        // Provider signalled a warning without a figure: approaching.
-        w.used_percent = Some(80.0);
-        w.provenance = Provenance::Estimated;
-    }
+    w.approaching = status == "allowed_warning";
     (!status.is_empty() || resets.is_some() || utilization.is_some()).then_some(w)
 }
 
@@ -420,6 +416,11 @@ mod tests {
         assert_eq!(w.resets_at.unwrap().timestamp(), 1900000000);
         assert_eq!(limit_reset_from_text("Claude AI usage limit reached|1900000000").unwrap().timestamp(), 1900000000);
         assert!(limit_from_event("cc", &json!({"type":"rate_limit_event"})).is_none());
+        let warning = limit_from_event("cc", &json!({"rate_limit_info":{"status":"allowed_warning"}})).unwrap();
+        assert_eq!(warning.state_at(now(), 0.8), LimitState::Approaching);
+        assert_eq!(warning.used_percent, None);
+        assert_eq!(warning.remaining_fraction(), None);
+        assert_eq!(warning.provenance, Provenance::Reported);
     }
 
     #[test]

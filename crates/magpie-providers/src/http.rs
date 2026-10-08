@@ -203,6 +203,7 @@ pub fn openai_rate_limits(account_id: &str, h: &HeaderMap) -> Vec<LimitWindow> {
             resets_at: reset,
             provenance: Provenance::Reported,
             exhausted: false,
+            approaching: false,
             observed_at: now,
         });
     }
@@ -241,6 +242,7 @@ pub fn anthropic_rate_limits(account_id: &str, model: &str, h: &HeaderMap) -> Ve
             resets_at: reset,
             provenance: Provenance::Reported,
             exhausted: false,
+            approaching: false,
             observed_at: now,
         });
     }

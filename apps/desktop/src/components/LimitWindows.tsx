@@ -9,6 +9,7 @@ export function windowState(w: LimitWindow, now = Date.now()): LimitState {
   const used = usedFraction(w);
   if (w.exhausted || w.remaining === 0 || used === 1)
     return resetPassed ? "reset_pending" : "exhausted";
+  if (w.approaching && !resetPassed && used === null) return "approaching";
   if (used === null) {
     if (w.metric === "credits" && w.remaining !== undefined)
       return w.remaining <= 0 ? "exhausted" : "available";
