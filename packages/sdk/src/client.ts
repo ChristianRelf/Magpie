@@ -295,7 +295,15 @@ export class MagpieClient {
     return this.json("GET", "/v1/providers");
   }
 
-  connectProvider(req: ConnectRequest): Promise<Account> {
+  async connectProvider(req: ConnectRequest): Promise<Account> {
+    // Older v1 services ignore unknown JSON fields. Do not send a saved
+    // token to one and accidentally connect its shared CLI login instead.
+    if (req.auth_mode && req.auth_mode !== "existing") {
+      const status = await this.status();
+      if (!status.features?.includes("auth_profiles")) {
+        throw new MagpieError("Restart the harness in Settings to use saved authentication profiles.", 409, "outdated_harness");
+      }
+    }
     return this.json("POST", "/v1/providers", req);
   }
 
@@ -309,6 +317,11 @@ export class MagpieClient {
 
   verifyProvider(id: string): Promise<Account> {
     return this.json("POST", `/v1/providers/${encodeURIComponent(id)}/verify`);
+  }
+
+  /** Open auth_url in the browser; the harness completes sign-in in the background. */
+  loginProvider(id: string): Promise<{ auth_url: string }> {
+    return this.json("POST", `/v1/providers/${encodeURIComponent(id)}/login`);
   }
 
   refreshProvider(

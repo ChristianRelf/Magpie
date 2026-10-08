@@ -139,8 +139,10 @@ async fn set_claude_usage_reporting(
         }
         let store = magpie_store::Store::open(&paths.database()).map_err(|e| e.to_string())?;
         let account = store.get_account(&account_id).map_err(|e| e.to_string())?.ok_or("Provider account not found")?;
-        if account.kind != ProviderKind::ClaudeCode || !account.enabled {
-            return Err("Select an enabled Claude Code connection".into());
+        if account.kind != ProviderKind::ClaudeCode || !account.enabled || account.has_managed_profile() {
+            return Err(
+                "Status-line reporting requires an enabled shared Claude Code login. Saved tokens report limits during execution.".into()
+            );
         }
         magpie_runtime::claude_usage::enable(&paths, &magpie_runtime::claude_usage::settings_path()?, &executable, &account_id)
     })
@@ -174,8 +176,16 @@ fn login_command(kind: ProviderKind) -> Result<(&'static str, Vec<&'static str>)
     }
 }
 #[tauri::command]
-async fn open_cli_login(kind: ProviderKind) -> Result<(), String> {
-    let (name, args) = login_command(kind)?;
+async fn open_cli_login(kind: ProviderKind, setup_token: Option<bool>) -> Result<(), String> {
+    let setup_token = setup_token.unwrap_or(false);
+    let (name, args) = if setup_token {
+        if kind != ProviderKind::ClaudeCode {
+            return Err("Token setup is only supported for Claude Code".into());
+        }
+        ("claude", vec!["setup-token"])
+    } else {
+        login_command(kind)?
+    };
     let bin = magpie_providers::cli::find_binary(name, None).ok_or_else(|| format!("Install the official {name} CLI first"))?;
     tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
         #[cfg(target_os = "linux")]
@@ -184,7 +194,19 @@ async fn open_cli_login(kind: ProviderKind) -> Result<(), String> {
             for (terminal, flag) in choices {
                 if let Some(program) = magpie_providers::cli::find_binary(terminal, None) {
                     let mut command = std::process::Command::new(program);
-                    command.arg(flag).arg(&bin).args(&args);
+                    command.arg(flag);
+                    if setup_token {
+                        // Keep the printed token visible until the user copies
+                        // it. Binary/arguments are positional, never interpolated
+                        // into shell source, including paths containing spaces.
+                        command.args([
+                            "sh",
+                            "-c",
+                            "\"$@\"; printf '\\nCopy the token into Magpie, then press Enter to close. '; IFS= read -r magpie_wait",
+                            "magpie-token-setup",
+                        ]);
+                    }
+                    command.arg(&bin).args(&args);
                     // npm CLIs need their accompanying node binary on PATH.
                     let mut paths = vec![bin.parent().unwrap_or(std::path::Path::new("/usr/bin")).to_path_buf()];
                     if let Some(path) = std::env::var_os("PATH") {
@@ -200,7 +222,10 @@ async fn open_cli_login(kind: ProviderKind) -> Result<(), String> {
         #[cfg(target_os = "macos")]
         {
             let escaped = format!("'{}'", bin.display().to_string().replace('\'', "'\\''"));
-            let command = format!("{} {}", escaped, args.join(" "));
+            let mut command = format!("{} {}", escaped, args.join(" "));
+            if setup_token {
+                command.push_str("; printf '\\nCopy the token into Magpie, then press Enter to close. '; read -r magpie_wait");
+            }
             let script =
                 format!("tell application \"Terminal\" to do script {}", serde_json::to_string(&command).map_err(|e| e.to_string())?);
             let status = std::process::Command::new("osascript")

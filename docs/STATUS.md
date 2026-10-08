@@ -2,6 +2,16 @@
 
 Updated 2026-10-08. Implemented code and verified release behaviour are recorded separately.
 
+## Saved authentication profiles — 0.1.3 (unreleased)
+
+- Codex supports independent browser sign-ins through the official app-server, with one private configuration directory per connection and required OS keyring storage. Sign-in completion runs in the harness, independent of the connect dialog. Shared terminal/IDE logins are preserved.
+- Claude Code supports multiple user-supplied `claude setup-token` credentials in Magpie's OS credential store. Each execution selects the connection's token and isolated configuration; inherited credentials cannot replace the selected token. CLI status only verifies configuration, so identity/account-wide allowances stay unavailable. Rejected tokens remain disconnected until explicitly replaced. The existing status-line bridge remains scoped to the shared login.
+- Provider management can add another credential, rename, disable, replace and disconnect profiles. The execution inspector identifies each selected connection and fallback attempt. API keys continue to support multiple connections; Gemini CLI remains one shared login, with multiple Gemini API-key connections available.
+- Fallback rechecks eligibility after credential/limit failures, skips unavailable models on that account, preserves manual/no-fallback and partial-output/write safety, and emits routing changes. New requests also require explicit opt-in before using paid APIs when saved subscriptions are unavailable. Active execution metadata follows the current account so its credential cannot be deleted during a fallback.
+- Added SDK/service capability negotiation so an older service cannot ignore a saved-auth request and connect its shared CLI login instead. Version metadata is prepared for 0.1.3; no 0.1.3 installers have been published.
+- Final local validation on source `552f890`: all 125 Rust workspace tests passed, together with six SDK and seven UI tests, TypeScript checks, the production UI build, both browser scenarios, CLI/native Linux builds, native background-service lifecycle and Claude usage-helper checks. Browser screenshots were inspected. The browser suite covers two independent Codex profiles, sign-in completion after closing the dialog, adding another credential, saved Claude tokens and independent disconnection. [PR #7](https://github.com/ChristianRelf/Magpie/pull/7) keeps this work separate from concurrent UI edits; hosted checks run on the PR. No new installers have been published.
+- Provider tests use explicit local CLI/HTTP fixtures. A read-only check of installed Claude Code confirmed that `auth status` reports a configured setup-token without proving remote validity. No new real account was signed in, no credentials were extracted and no real model request was made. Additional-account OAuth consent and native credential-manager behaviour still need account-owner smoke checks on each operating system before publishing these changes.
+
 ## Claude Code allowance fix — 0.1.1
 
 - Added opt-in usage reporting in the Claude provider inspector using the official status-line interface. The private snapshot retains only reported 5-hour/weekly percentages, reset timestamps, linked account ID and observation time. No credential extraction, transcript reading or allowance-consuming refresh is used.

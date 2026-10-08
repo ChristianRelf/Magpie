@@ -119,6 +119,7 @@ fn economical_prefers_free_execution() {
 #[test]
 fn capability_negotiation_rejects_models_without_tools() {
     let mut req = ExecRequest::simple("call the tool");
+    req.preferences.allow_billable = Some(true);
     req.tools.push(ToolDefinition { name: "t".into(), description: None, parameters: serde_json::json!({}) });
     let d = run(&req, &inventory(), &RoutingConfig::default(), &[]).unwrap();
     assert!(d.candidates.iter().all(|c| c.model.account_id == "api"));
@@ -144,7 +145,7 @@ fn no_subscription_to_api_fallback_without_opt_in() {
     let d = run(&req, &inventory(), &RoutingConfig::default(), &[]).unwrap();
     assert_eq!(d.selected().unwrap().model.model_id, "frontier");
     assert!(d.candidates.iter().all(|c| !c.billable));
-    assert!(d.rejected.iter().any(|r| r.reason.contains("subscription to billable")));
+    assert!(d.rejected.iter().any(|r| r.reason.contains("opt-in")));
 
     let d = run(&req, &inventory(), &RoutingConfig { allow_subscription_to_api: true, ..Default::default() }, &[]).unwrap();
     assert!(d.candidates.iter().any(|c| c.billable));
@@ -201,6 +202,7 @@ fn task_rules_and_disabled_models() {
     models[3].preference.disabled = true;
     let cfg = RoutingConfig {
         task_rules: vec![TaskRule { task: TaskClass::SimpleQuestion, models: vec!["api/big".into()], preset: None }],
+        allow_subscription_to_api: true,
         ..Default::default()
     };
     let d = run(&ExecRequest::simple("What time zone is Tokyo in?"), &models, &cfg, &[]).unwrap();
@@ -211,6 +213,7 @@ fn task_rules_and_disabled_models() {
 #[test]
 fn cost_ceiling_rejects_expensive_models() {
     let mut req = ExecRequest::simple(&"word ".repeat(40_000));
+    req.preferences.allow_billable = Some(true);
     req.preferences.max_cost_usd = Some(0.001);
     req.preferences.providers = vec![ProviderKind::OpenAi];
     let err = run(&req, &inventory(), &RoutingConfig::default(), &[]).unwrap_err();
@@ -243,4 +246,21 @@ fn history_penalises_unreliable_models() {
     })
     .unwrap();
     assert_eq!(d.selected().unwrap().model.key, "b/m2");
+}
+
+#[test]
+fn exhausted_saved_subscriptions_do_not_implicitly_authorise_paid_requests() {
+    let mut models = inventory();
+    models.retain(|m| m.billing_mode != BillingMode::Local);
+    models[0].available = false; // Last saved credential expired.
+    let mut req = ExecRequest::simple("hi");
+    assert_eq!(run(&req, &models, &RoutingConfig::default(), &[]).unwrap_err().kind, ErrorKind::NoEligibleModel);
+    req.preferences.allow_billable = Some(true);
+    assert!(run(&req, &models, &RoutingConfig::default(), &[]).unwrap().selected().unwrap().billable);
+    req.preferences.allow_billable = None;
+    req.model = "api/big".into(); // Explicit model selection remains an opt-in.
+    assert_eq!(run(&req, &models, &RoutingConfig::default(), &[]).unwrap().selected().unwrap().model.key, "api/big");
+    req.model = "auto".into();
+    let cfg = RoutingConfig { allow_subscription_to_api: true, ..Default::default() };
+    assert!(run(&req, &models, &cfg, &[]).unwrap().selected().unwrap().billable);
 }

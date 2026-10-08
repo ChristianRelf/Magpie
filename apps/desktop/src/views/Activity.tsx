@@ -39,6 +39,9 @@ import {
 
 function Inspector({ id, close }: { id: string; close: () => void }) {
   const query = useExecution(id);
+  const providers = useProviders();
+  const accountName = (id?: string) =>
+    providers.data?.accounts.find((a) => a.id === id)?.label ?? id ?? "Unavailable";
   const e = query.data;
   const client = useClient();
   const action = useAction();
@@ -85,6 +88,7 @@ function Inspector({ id, close }: { id: string; close: () => void }) {
               ["Started", dateTime(e.created_at)],
               ["Model", e.model?.display_name ?? "No model selected"],
               ["Provider", providerName(e.model?.provider)],
+              ["Connection", accountName(e.model?.account_id)],
               ["Client", e.client],
               ["Duration", ms(e.duration_ms)],
               ["First token", ms(e.time_to_first_token_ms)],
@@ -142,6 +146,7 @@ function Inspector({ id, close }: { id: string; close: () => void }) {
                     >
                       <summary className="cursor-pointer py-1.5">
                         {i + 1}. {c.model.display_name}
+                        <span className="ml-2 text-fg-subtle">{accountName(c.model.account_id)}</span>
                         <span className="ml-2 font-mono text-fg-subtle">
                           {c.score.toFixed(2)}
                         </span>
@@ -182,6 +187,7 @@ function Inspector({ id, close }: { id: string; close: () => void }) {
                     <span>{attempt.model.display_name}</span>
                     <Mono>{ms(attempt.duration_ms)}</Mono>
                   </div>
+                  <p className="mt-1 text-fg-subtle">{accountName(attempt.model.account_id)}</p>
                   {attempt.error && (
                     <p className="mt-1 text-fg-subtle">
                       {attempt.error.message}

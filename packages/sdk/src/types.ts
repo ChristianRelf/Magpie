@@ -16,7 +16,8 @@ export type ProviderKind =
   | "codex_cli"
   | "gemini_cli";
 
-export type AuthMethod = "api_key" | "cli_delegated" | "none";
+export type AuthMethod = "api_key" | "cli_delegated" | "cli_token" | "none";
+export type CliAuthMode = "existing" | "isolated" | "saved_token";
 export type BillingMode =
   "subscription" | "metered" | "credits" | "local" | "unknown";
 export type ConnectionStatus =
@@ -372,6 +373,7 @@ export interface ProviderUsageReport {
 }
 
 export interface HarnessStatus {
+  features?: string[];
   product: string;
   version: string;
   api_version: number;
@@ -496,6 +498,8 @@ export interface CliStatus {
 }
 
 export interface ConnectRequest {
+  auth_mode?: CliAuthMode;
+  oauth_token?: string;
   kind: ProviderKind;
   label?: string;
   api_key?: string;
@@ -505,6 +509,7 @@ export interface ConnectRequest {
 }
 
 export interface AccountPatch {
+  oauth_token?: string;
   label?: string;
   enabled?: boolean;
   base_url?: string;

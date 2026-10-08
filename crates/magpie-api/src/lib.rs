@@ -63,6 +63,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/providers/cli", get(native::detect_clis))
         .route("/v1/providers/{id}", axum::routing::patch(native::update_provider).delete(native::delete_provider))
         .route("/v1/providers/{id}/verify", post(native::verify_provider))
+        .route("/v1/providers/{id}/login", post(native::login_provider))
         .route("/v1/providers/{id}/refresh", post(native::refresh_provider))
         .route("/v1/limits", get(native::limits))
         // Telemetry

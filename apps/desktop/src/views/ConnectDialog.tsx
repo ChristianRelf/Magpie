@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Copy, ExternalLink, Eye, EyeOff, RefreshCw, ShieldCheck, Terminal } from "lucide-react";
-import type { BillingMode, CliStatus, ProviderDescriptor, ProviderKind } from "@magpie/sdk";
+import type { BillingMode, CliAuthMode, CliStatus, ProviderDescriptor, ProviderKind } from "@magpie/sdk";
 import { Button, Field, Input, cn } from "@/components/ui/core";
 import { Dialog, Select } from "@/components/ui/controls";
 import { ProviderMark } from "@/components/ui/marks";
@@ -9,6 +9,7 @@ import { errorMessage, useToast } from "@/components/ui/feedback";
 import { useHarness } from "@/lib/harness";
 import { useClis, useProviders } from "@/lib/queries";
 import { copyText, isTauri, openCliLogin, openExternal } from "@/lib/desktop";
+import { AccountLogin } from "./AccountLogin";
 
 const GROUPS: { title: string; note: string; kinds: ProviderKind[] }[] = [
   {
@@ -50,11 +51,13 @@ function CliSetup({
   cli,
   onRecheck,
   checking,
+  authMode,
 }: {
   d: ProviderDescriptor;
   cli?: CliStatus;
   onRecheck: () => void;
   checking: boolean;
+  authMode: CliAuthMode;
 }) {
   const toast = useToast();
   if (!cli?.installed) {
@@ -89,38 +92,78 @@ function CliSetup({
           {cli.version && <span className="font-mono">{cli.version}</span>}
         </span>
       </div>
-      <div className="rounded-lg border border-border bg-bg-subtle p-3 text-xs leading-relaxed text-fg-muted">
-        The CLI signs in directly with{" "}
-        {d.vendor === "anthropic" ? "Anthropic" : d.vendor === "openai" ? "OpenAI" : "Google"}. Magpie never sees your
-        password or tokens; it runs the official CLI on your behalf and respects your plan's usage limits.
-      </div>
-      <div>
-        <div className="mb-1.5 text-xs font-medium text-fg-muted">If you are not signed in yet</div>
-        {d.cli_login && <CopyLine text={d.cli_login} />}
-        {isTauri && (
-          <Button
-            className="mt-2"
-            variant="outline"
-            icon={<Terminal className="size-3.5" />}
-            onClick={() =>
-              void openCliLogin(d.kind).catch((e) =>
-                toast({
-                  title: "Could not open a terminal",
-                  description: errorMessage(e),
-                  tone: "error",
-                }),
-              )
-            }
-          >
-            Sign in using a terminal
-          </Button>
-        )}
-      </div>
+      {authMode === "existing" && (
+        <div className="rounded-lg border border-border bg-bg-subtle p-3 text-xs leading-relaxed text-fg-muted">
+          The CLI signs in directly with{" "}
+          {d.vendor === "anthropic" ? "Anthropic" : d.vendor === "openai" ? "OpenAI" : "Google"}. Magpie never sees your
+          password or tokens; it runs the official CLI on your behalf and respects your plan's usage limits.
+        </div>
+      )}
+      {authMode === "isolated" && (
+        <p className="text-xs leading-relaxed text-fg-muted">
+          Create a separate sign-in for this account. Codex handles browser authentication and saves its credentials in
+          the OS credential manager. Your terminal and IDE sign-in stays independent.
+        </p>
+      )}
+      {authMode === "saved_token" && (
+        <div className="space-y-2">
+          <p className="text-xs leading-relaxed text-fg-muted">
+            Generate a token with Claude's official browser flow, then paste it below. Magpie stores it in the OS
+            credential manager and supplies it only to Claude Code. Add one connection for each saved credential.
+          </p>
+          <CopyLine text="claude setup-token" />
+          {isTauri && (
+            <Button
+              variant="outline"
+              icon={<Terminal className="size-3.5" />}
+              onClick={() =>
+                void openCliLogin("claude_code", true).catch((e) =>
+                  toast({ title: "Could not open a terminal", description: errorMessage(e), tone: "error" }),
+                )
+              }
+            >
+              Generate token in a terminal
+            </Button>
+          )}
+        </div>
+      )}
+      {authMode === "existing" && (
+        <div>
+          <div className="mb-1.5 text-xs font-medium text-fg-muted">If you are not signed in yet</div>
+          {d.cli_login && <CopyLine text={d.cli_login} />}
+          {isTauri && (
+            <Button
+              className="mt-2"
+              variant="outline"
+              icon={<Terminal className="size-3.5" />}
+              onClick={() =>
+                void openCliLogin(d.kind).catch((e) =>
+                  toast({
+                    title: "Could not open a terminal",
+                    description: errorMessage(e),
+                    tone: "error",
+                  }),
+                )
+              }
+            >
+              Sign in using a terminal
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-export function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function ConnectDialog({
+  open,
+  onOpenChange,
+  initialKind,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  initialKind?: ProviderKind;
+}) {
   const { client } = useHarness();
   const qc = useQueryClient();
   const toast = useToast();
@@ -134,6 +177,8 @@ export function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   const [billing, setBilling] = useState<BillingMode>("unknown");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [authMode, setAuthMode] = useState<CliAuthMode>("existing");
+  const [pendingAccount, setPendingAccount] = useState<string>();
 
   useEffect(() => {
     if (!open) {
@@ -141,6 +186,7 @@ export function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenCha
       setKey("");
       setShowKey(false);
       setError(null);
+      setPendingAccount(undefined);
     }
   }, [open]);
 
@@ -148,6 +194,7 @@ export function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   const d = kind ? descriptors.get(kind) : undefined;
   const connectedKinds = new Set((providers?.accounts ?? []).map((a) => a.kind));
   const cliFor = (k: ProviderKind) => clis.data?.clis.find((c) => c.kind === k);
+  const existingShared = (providers?.accounts ?? []).some((a) => a.kind === kind && !a.options.auth_mode);
 
   const choose = (k: ProviderKind) => {
     const desc = descriptors.get(k);
@@ -157,8 +204,14 @@ export function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenCha
     setBaseUrl(desc?.default_base_url ?? "");
     setBilling(desc?.default_billing ?? "unknown");
     setError(null);
+    setPendingAccount(undefined);
+    setAuthMode(k === "codex_cli" ? "isolated" : k === "claude_code" ? "saved_token" : "existing");
     if (desc?.auth_method === "cli_delegated") void clis.refetch();
   };
+
+  useEffect(() => {
+    if (open && initialKind && !kind && descriptors.has(initialKind)) choose(initialKind);
+  }, [open, initialKind, descriptors, kind]);
 
   const submit = async () => {
     if (!client || !d) return;
@@ -168,7 +221,9 @@ export function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenCha
       const account = await client.connectProvider({
         kind: d.kind,
         label: label.trim() || undefined,
-        api_key: key.trim() || undefined,
+        api_key: authMode !== "saved_token" ? key.trim() || undefined : undefined,
+        oauth_token: authMode === "saved_token" ? key.trim() || undefined : undefined,
+        auth_mode: d.auth_method === "cli_delegated" ? authMode : undefined,
         base_url:
           baseUrl.trim() && baseUrl.trim() !== d.default_base_url
             ? baseUrl.trim()
@@ -177,8 +232,14 @@ export function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenCha
               : undefined,
         billing_mode: d.kind === "open_ai_compatible" ? billing : undefined,
       });
+      setKey("");
+      qc.invalidateQueries({ queryKey: ["providers"] });
+      if (authMode === "isolated") {
+        setPendingAccount(account.id);
+        return;
+      }
       toast({
-        title: `${account.label} connected`,
+        title: authMode === "saved_token" ? `${account.label} credential saved` : `${account.label} connected`,
         description: account.plan ? `${account.plan} plan` : undefined,
         tone: "success",
       });
@@ -197,6 +258,8 @@ export function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenCha
     !!d &&
     (!needsKey || key.trim().length > 8) &&
     (d.kind !== "open_ai_compatible" || baseUrl.trim().length > 0) &&
+    (authMode !== "saved_token" || key.trim().length > 20) &&
+    !(d.auth_method === "cli_delegated" && authMode === "existing" && existingShared) &&
     (d.auth_method !== "cli_delegated" || !!cliFor(d.kind)?.installed);
 
   return (
@@ -209,6 +272,7 @@ export function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenCha
           <span className="flex items-center gap-2.5">
             <button
               onClick={() => setKind(null)}
+              disabled={!!pendingAccount || busy}
               className="-ml-1 rounded p-0.5 text-fg-subtle hover:bg-surface-2 hover:text-fg"
               aria-label="Back"
             >
@@ -222,19 +286,36 @@ export function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenCha
       }
       description={d ? d.summary : "Use the AI accounts you already have. Credentials stay on this device."}
       footer={
-        d ? (
+        pendingAccount ? (
+          <Button onClick={() => onOpenChange(false)}>Finish later</Button>
+        ) : d ? (
           <>
             <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button variant="primary" size="md" loading={busy} disabled={!canSubmit} onClick={() => void submit()}>
-              {d.auth_method === "cli_delegated" ? "Verify and connect" : "Connect"}
+              {authMode === "isolated"
+                ? "Create sign-in profile"
+                : authMode === "saved_token"
+                  ? "Save credential"
+                  : d.auth_method === "cli_delegated"
+                    ? "Verify and connect"
+                    : "Connect"}
             </Button>
           </>
         ) : undefined
       }
     >
-      {!d ? (
+      {pendingAccount ? (
+        <AccountLogin
+          accountId={pendingAccount}
+          autoStart
+          onConnected={() => {
+            toast({ title: "Codex profile connected", tone: "success" });
+            onOpenChange(false);
+          }}
+        />
+      ) : !d ? (
         <div className="space-y-4">
           {GROUPS.map((g) => (
             <div key={g.title}>
@@ -286,7 +367,57 @@ export function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenCha
             <div className="text-xs text-fg-muted">{d.summary}</div>
           </div>
           {d.auth_method === "cli_delegated" && (
-            <CliSetup d={d} cli={cliFor(d.kind)} checking={clis.isFetching} onRecheck={() => void clis.refetch()} />
+            <div className="space-y-3">
+              {(d.kind === "codex_cli" || d.kind === "claude_code") && (
+                <Field label="Authentication">
+                  <Select
+                    label="Authentication"
+                    value={authMode}
+                    onChange={(v) => {
+                      setAuthMode(v as CliAuthMode);
+                      setKey("");
+                      setError(null);
+                    }}
+                    options={[
+                      d.kind === "codex_cli"
+                        ? { value: "isolated", label: "Separate browser sign-in" }
+                        : { value: "saved_token", label: "Saved Claude Code token" },
+                      ...(!existingShared ? [{ value: "existing", label: "Use existing CLI login" }] : []),
+                    ]}
+                  />
+                </Field>
+              )}
+              <CliSetup
+                d={d}
+                cli={cliFor(d.kind)}
+                checking={clis.isFetching}
+                onRecheck={() => void clis.refetch()}
+                authMode={authMode}
+              />
+              {authMode === "saved_token" && (
+                <Field
+                  label="Claude Code token"
+                  hint="Generated by claude setup-token. Identity and validity are confirmed by Claude on execution; expired tokens need replacing."
+                >
+                  <Input
+                    type="password"
+                    mono
+                    value={key}
+                    onChange={(e) => setKey(e.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder="Paste setup-token"
+                  />
+                </Field>
+              )}
+              {authMode !== "existing" && (
+                <p className="text-2xs text-fg-subtle">
+                  When automatic fallback is enabled in Routing, eligible saved accounts can take over after a
+                  credential expires or its allowance is exhausted. Credentials for the same provider account may share
+                  an allowance.
+                </p>
+              )}
+            </div>
           )}
           {(d.kind === "codex_cli" || d.kind === "gemini_cli") && (
             <p className="text-xs text-fg-muted">

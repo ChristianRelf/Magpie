@@ -156,6 +156,11 @@ pub async fn verify_provider(State(s): State<AppState>, auth: Auth, Path(id): Pa
     Ok(Json(s.harness.verify_account(&id).await?))
 }
 
+pub async fn login_provider(State(s): State<AppState>, auth: Auth, Path(id): Path<String>) -> ApiResult<Json<LoginChallenge>> {
+    auth.require(Scope::Admin)?;
+    Ok(Json(s.harness.begin_account_login(&id).await?))
+}
+
 pub async fn refresh_provider(State(s): State<AppState>, auth: Auth, Path(id): Path<String>) -> ApiResult<Json<Value>> {
     auth.require(Scope::Admin)?;
     let account = s.harness.verify_account(&id).await?;

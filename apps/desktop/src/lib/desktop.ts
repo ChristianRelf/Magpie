@@ -75,9 +75,9 @@ export async function setClaudeUsageReporting(accountId: string, enabled: boolea
 }
 
 /** Open the provider's official sign-in command in a terminal window. */
-export async function openCliLogin(kind: ProviderKind): Promise<void> {
+export async function openCliLogin(kind: ProviderKind, setupToken = false): Promise<void> {
   if (!isTauri) throw new Error("Terminal sign-in is only available in the desktop app.");
-  await invoke("open_cli_login", { kind });
+  await invoke("open_cli_login", { kind, setupToken });
 }
 
 export async function setWindowBehaviour(minimiseToTray: boolean, keepHarnessRunning: boolean): Promise<void> {

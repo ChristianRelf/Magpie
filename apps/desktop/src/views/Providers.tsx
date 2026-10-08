@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, RefreshCw, Plug, ShieldCheck, ExternalLink, Settings2 } from "lucide-react";
-import type { ProviderAccount } from "@magpie/sdk";
+import type { ProviderAccount, ProviderKind } from "@magpie/sdk";
 import { Page } from "@/components/Page";
 import { Button, Badge, EmptyState, Field, Input, Panel, PanelHeader } from "@/components/ui/core";
 import { Dialog, Drawer, SettingRow, Switch } from "@/components/ui/controls";
@@ -16,6 +16,7 @@ import { useAction } from "@/lib/action";
 import { BILLING_LABELS, dateTime, titleCase } from "@/lib/format";
 import { openExternal, isTauri, claudeUsageStatus, setClaudeUsageReporting } from "@/lib/desktop";
 import { ConnectDialog } from "./ConnectDialog";
+import { AccountLogin } from "./AccountLogin";
 
 function ClaudeUsageReporting({ account }: { account: ProviderAccount }) {
   const action = useAction();
@@ -94,7 +95,15 @@ function ClaudeUsageReporting({ account }: { account: ProviderAccount }) {
   );
 }
 
-function AccountInspector({ account, onClose }: { account: ProviderAccount; onClose: () => void }) {
+function AccountInspector({
+  account,
+  onClose,
+  onAddAnother,
+}: {
+  account: ProviderAccount;
+  onClose: () => void;
+  onAddAnother: () => void;
+}) {
   const client = useClient();
   const action = useAction();
   const now = useNow();
@@ -116,10 +125,14 @@ function AccountInspector({ account, onClose }: { account: ProviderAccount; onCl
           {account.status_message && (
             <p className="rounded-md border border-border p-3 text-xs text-fg-muted">{account.status_message}</p>
           )}
+          {account.kind === "codex_cli" &&
+            account.options.auth_mode === "isolated" &&
+            account.status !== "connected" &&
+            account.enabled && <AccountLogin accountId={account.id} />}
           <Panel>
             <SettingRow
               title="Available for routing"
-              description="Disabled accounts keep their credentials and history."
+              description="Automatic routing and fallback can use this credential. Disabled accounts keep their credentials and history."
             >
               <Switch
                 checked={account.enabled}
@@ -134,9 +147,9 @@ function AccountInspector({ account, onClose }: { account: ProviderAccount; onCl
           <Field label="Account name">
             <Input value={label} maxLength={80} onChange={(e) => setLabel(e.target.value)} />
           </Field>
-          {account.auth_method === "api_key" && (
+          {(account.auth_method === "api_key" || account.auth_method === "cli_token") && (
             <Field
-              label="Replace API key"
+              label={account.auth_method === "cli_token" ? "Replace Claude Code token" : "Replace API key"}
               hint="Leave blank to keep the current key. Stored in the operating system credential manager."
             >
               <Input
@@ -144,7 +157,7 @@ function AccountInspector({ account, onClose }: { account: ProviderAccount; onCl
                 autoComplete="off"
                 value={key}
                 onChange={(e) => setKey(e.target.value)}
-                placeholder="New API key"
+                placeholder={account.auth_method === "cli_token" ? "New setup-token" : "New API key"}
               />
             </Field>
           )}
@@ -156,7 +169,8 @@ function AccountInspector({ account, onClose }: { account: ProviderAccount; onCl
                 async () => {
                   await client.updateProvider(account.id, {
                     label: label.trim(),
-                    api_key: key.trim() || undefined,
+                    api_key: account.auth_method === "api_key" ? key.trim() || undefined : undefined,
+                    oauth_token: account.auth_method === "cli_token" ? key.trim() || undefined : undefined,
                   });
                   setKey("");
                 },
@@ -169,7 +183,13 @@ function AccountInspector({ account, onClose }: { account: ProviderAccount; onCl
           </Button>
           <dl className="grid grid-cols-[140px_1fr] gap-x-4 gap-y-3 text-xs">
             <dt className="text-fg-subtle">Authentication</dt>
-            <dd>{titleCase(account.auth_method)}</dd>
+            <dd>
+              {account.options.auth_mode === "isolated"
+                ? "Separate browser sign-in"
+                : account.auth_method === "cli_token"
+                  ? "Saved Claude Code token"
+                  : titleCase(account.auth_method)}
+            </dd>
             <dt className="text-fg-subtle">Identity</dt>
             <dd>{account.identity ?? "Unavailable"}</dd>
             <dt className="text-fg-subtle">Billing</dt>
@@ -184,7 +204,9 @@ function AccountInspector({ account, onClose }: { account: ProviderAccount; onCl
             <dt className="text-fg-subtle">Credential storage</dt>
             <dd>
               {account.auth_method === "cli_delegated"
-                ? "Managed by official CLI"
+                ? account.options.auth_mode === "isolated"
+                  ? "OS credential manager (Codex)"
+                  : "Managed by official CLI"
                 : account.has_secret
                   ? (account.secret_store ?? "OS credential manager")
                   : "No credential"}
@@ -206,12 +228,19 @@ function AccountInspector({ account, onClose }: { account: ProviderAccount; onCl
                     : "Unavailable. This provider has not reported an allowance or reset time."}
                 </p>
               )}
-              {account.kind === "claude_code" && <ClaudeUsageReporting account={account} />}
+              {account.kind === "claude_code" && account.auth_method === "cli_delegated" && (
+                <ClaudeUsageReporting account={account} />
+              )}
             </div>
           </Panel>
           <p className="text-xs text-fg-subtle">
             Activity records cover requests made through Magpie. They do not represent total account usage.
           </p>
+          {account.descriptor.allow_multiple && !account.descriptor.is_local && (
+            <Button icon={<Plus className="size-3.5" />} onClick={onAddAnother}>
+              Add another credential
+            </Button>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button
               loading={action.busy}
@@ -250,7 +279,11 @@ function AccountInspector({ account, onClose }: { account: ProviderAccount; onCl
         open={remove}
         onOpenChange={setRemove}
         title="Disconnect this account?"
-        description="Magpie will delete its stored credential and stop routing new requests to this account. Your history is kept. CLI sign-in is managed separately by the provider."
+        description={
+          account.options.auth_mode === "isolated"
+            ? "Magpie will sign this separate Codex profile out, remove its saved credential and stop using it. Your terminal and IDE sign-in and execution history are kept."
+            : "Magpie will delete its stored credential and stop routing new requests to this account. Your history is kept. Shared CLI sign-in is managed separately by the provider."
+        }
         footer={
           <>
             <Button onClick={() => setRemove(false)}>Cancel</Button>
@@ -287,6 +320,7 @@ export function Providers() {
   const providers = useProviders();
   const { param, navigate } = useNav();
   const [connecting, setConnecting] = useState(false);
+  const [connectingKind, setConnectingKind] = useState<ProviderKind>();
   const [selected, setSelected] = useState<string | null>(null);
   const now = useNow();
   useEffect(() => {
@@ -302,7 +336,14 @@ export function Providers() {
       title="Providers"
       subtitle={`${accounts.length} connected account${accounts.length === 1 ? "" : "s"}`}
       actions={
-        <Button variant="primary" icon={<Plus className="size-3.5" />} onClick={() => setConnecting(true)}>
+        <Button
+          variant="primary"
+          icon={<Plus className="size-3.5" />}
+          onClick={() => {
+            setConnectingKind(undefined);
+            setConnecting(true);
+          }}
+        >
           Connect provider
         </Button>
       }
@@ -341,14 +382,22 @@ export function Providers() {
                   <LimitStatus state="unknown" />
                   <p className="text-xs text-fg-subtle">
                     {a.kind === "claude_code"
-                      ? "Waiting for Claude usage data. Enable usage reporting in Manage."
+                      ? a.auth_method === "cli_token"
+                        ? "Limits appear when this credential's executions report them."
+                        : "Waiting for Claude usage data. Enable usage reporting in Manage."
                       : "Allowance and reset data unavailable."}
                   </p>
                 </div>
               )}
             </div>
             <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
-              <span className="text-2xs text-fg-subtle">{titleCase(a.auth_method)}</span>
+              <span className="text-2xs text-fg-subtle">
+                {a.options.auth_mode === "isolated"
+                  ? "Separate sign-in"
+                  : a.auth_method === "cli_token"
+                    ? "Saved token"
+                    : titleCase(a.auth_method)}
+              </span>
               <Button
                 variant="ghost"
                 size="xs"
@@ -361,8 +410,19 @@ export function Providers() {
           </Panel>
         ))}
       </div>
-      <ConnectDialog open={connecting} onOpenChange={setConnecting} />
-      {account && <AccountInspector key={account.id} account={account} onClose={() => setSelected(null)} />}
+      <ConnectDialog open={connecting} onOpenChange={setConnecting} initialKind={connectingKind} />
+      {account && (
+        <AccountInspector
+          key={account.id}
+          account={account}
+          onClose={() => setSelected(null)}
+          onAddAnother={() => {
+            setConnectingKind(account.kind);
+            setSelected(null);
+            setConnecting(true);
+          }}
+        />
+      )}
     </Page>
   );
 }
