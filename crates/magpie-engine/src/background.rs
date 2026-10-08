@@ -106,7 +106,10 @@ pub(crate) fn spawn(h: Arc<Harness>, mut poke_rx: mpsc::UnboundedReceiver<String
                     continue;
                 }
                 let state = polls.entry(account.id.clone()).or_insert(PollState { last: None, backoff: None });
-                let active = h.last_activity.read().get(&account.id).map(|t| t.elapsed() < ACTIVE_WINDOW).unwrap_or(false);
+                // Codex account reports include activity in other clients. A
+                // quiet harness does not imply that this account is idle.
+                let active = account.kind == magpie_core::ProviderKind::CodexCli
+                    || h.last_activity.read().get(&account.id).map(|t| t.elapsed() < ACTIVE_WINDOW).unwrap_or(false);
                 let interval = state.backoff.unwrap_or(if active { ACTIVE_INTERVAL } else { IDLE_INTERVAL });
                 let poked = pending.get(&account.id).map(|due| *due <= now).unwrap_or(false);
                 let due = match state.last {

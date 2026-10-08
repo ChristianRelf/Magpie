@@ -7,6 +7,8 @@ import { useNow } from "./LimitWindows";
 import { useTimeseries } from "@/lib/queries";
 import { compact, integer } from "@/lib/format";
 import { buildTokenActivity, type ActivityCell } from "@/lib/token-activity";
+import { accountPoints } from "@/lib/account-activity";
+import type { ProviderUsageReport } from "@magpie/sdk";
 
 const shades = ["var(--surface-3)", "var(--fg-faint)", "var(--fg-subtle)", "var(--fg-muted)", "var(--fg)"];
 const monthFormat = new Intl.DateTimeFormat(undefined, { month: "short", timeZone: "UTC" });
@@ -19,6 +21,9 @@ function CellShape(props: { cx?: number; cy?: number; fill?: string; payload?: A
       height={props.size}
       rx={3}
       fill={props.fill}
+      opacity={props.payload?.known === false ? 0.35 : 1}
+      stroke={props.payload?.known === false ? "var(--border-strong)" : undefined}
+      strokeDasharray={props.payload?.known === false ? "2 2" : undefined}
     />
   );
 }
@@ -27,9 +32,11 @@ function ActivityTooltip({ active, payload }: { active?: boolean; payload?: { pa
   const p = payload[0].payload;
   return (
     <div className="rounded-md border border-border-strong bg-surface-2 px-3 py-2 text-xs shadow-panel">
-      <p className="font-medium">{integer(p.value)} tokens</p>
+      <p className="font-medium">{p.known ? `${integer(p.value)} tokens` : "Not reported"}</p>
       <p className="mt-1 text-fg-subtle">{p.label}</p>
-      <p className="mt-1 text-2xs text-fg-subtle">{p.requests} requests on this day · UTC</p>
+      <p className="mt-1 text-2xs text-fg-subtle">
+        {p.requests === null ? "Provider-reported account usage · UTC" : `${p.requests} requests on this day · UTC`}
+      </p>
     </div>
   );
 }
@@ -38,27 +45,38 @@ export function TokenActivity({
   provider,
   modelKey,
   onSelectRange,
+  accountReport,
+  accountScope = false,
 }: {
   provider?: string;
   modelKey?: string;
   onSelectRange?: (from: number, to: number) => void;
+  accountReport?: ProviderUsageReport;
+  accountScope?: boolean;
 }) {
   const [mode, setMode] = useState<"daily" | "weekly" | "cumulative">("daily");
   const anchor = useNow();
   const [chartWidth, setChartWidth] = useState(800);
   const end = Math.floor(anchor / 86_400_000) * 86_400_000;
   const start = end - 364 * 86_400_000;
-  const query = useTimeseries({
-    range: "custom",
-    from: start,
-    to: end + 86_400_000,
-    bucket_ms: 86_400_000,
-    provider,
-    model_key: modelKey,
-  });
+  const query = useTimeseries(
+    {
+      range: "custom",
+      from: start,
+      to: end + 86_400_000,
+      bucket_ms: 86_400_000,
+      provider,
+      model_key: modelKey,
+    },
+    !accountScope,
+  );
+  const points = useMemo(
+    () => (accountScope ? accountPoints(accountReport) : (query.data?.points ?? [])),
+    [accountScope, accountReport, query.data],
+  );
   const cells = useMemo(
-    () => buildTokenActivity(query.data?.points ?? [], start, end, mode),
-    [query.data, start, end, mode],
+    () => buildTokenActivity(points, start, end, mode, accountScope),
+    [points, start, end, mode, accountScope],
   );
   const max = Math.max(1, ...cells.map((c) => c.value));
   const weeks = Math.max(1, ...cells.map((c) => c.week));
@@ -70,7 +88,7 @@ export function TokenActivity({
       cells.filter((c) => new Date(c.t).getUTCDate() <= 7).map((c) => [c.week, monthFormat.format(c.t)]),
     ).entries(),
   ].filter((_, i, all) => i === 0 || all[i - 1][1] !== all[i][1]);
-  const total = (query.data?.points ?? []).reduce((sum, p) => sum + p.input_tokens + p.output_tokens, 0);
+  const total = buildTokenActivity(points, start, end, "daily", accountScope).reduce((sum, p) => sum + p.value, 0);
   return (
     <Panel>
       <PanelHeader
@@ -89,8 +107,8 @@ export function TokenActivity({
           />
         }
       />
-      <QueryState pending={query.isLoading} error={query.error} retry={query.refetch} />
-      {query.isSuccess && (
+      {!accountScope && <QueryState pending={query.isLoading} error={query.error} retry={query.refetch} />}
+      {(accountScope || query.isSuccess) && (
         <div className="px-4 pt-3 pb-4">
           <div className="overflow-x-auto">
             <div
@@ -136,7 +154,11 @@ export function TokenActivity({
             </div>
           </div>
           <div className="mt-2 flex items-center justify-between text-2xs text-fg-subtle">
-            <span>{compact(total)} tokens in the last year · local harness usage</span>
+            <span>
+              {accountScope
+                ? `${compact(total)} reported tokens · account usage · faint cells are not reported`
+                : `${compact(total)} tokens in the last year · local harness usage`}
+            </span>
             <span className="inline-flex items-center gap-1.5">
               Less{" "}
               {shades.map((fill) => (
@@ -147,14 +169,16 @@ export function TokenActivity({
           </div>
           {total === 0 && (
             <p className="mt-2 text-2xs text-fg-subtle">
-              No recorded token activity yet. Empty cells represent no recorded usage.
+              {accountScope
+                ? "No token activity reported for these dates yet. Account reports can lag behind a running session."
+                : "No recorded token activity yet. This view counts only requests sent through Magpie."}
             </p>
           )}
           <details className="mt-2 text-2xs text-fg-subtle">
             <summary className="cursor-pointer">Accessible activity data</summary>
             <div className="mt-2 max-h-36 overflow-auto">
               {cells
-                .filter((c) => c.requests > 0)
+                .filter((c) => c.known && (c.value > 0 || (c.requests ?? 0) > 0))
                 .map((c) => (
                   <button
                     className="block w-full py-1 text-left hover:text-fg"
@@ -164,7 +188,7 @@ export function TokenActivity({
                     {c.label}: {integer(c.value)} tokens
                   </button>
                 ))}
-              {!cells.some((c) => c.requests > 0) && "No activity recorded."}
+              {!cells.some((c) => c.known && (c.value > 0 || (c.requests ?? 0) > 0)) && "No activity recorded."}
             </div>
           </details>
         </div>

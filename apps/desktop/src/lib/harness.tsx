@@ -1,22 +1,7 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { MagpieClient, type HarnessEvent } from "@magpie/sdk";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
-import {
-  connectHarness,
-  notifyOs,
-  restartHarness,
-  stopHarness,
-  type HarnessConnection,
-} from "./desktop";
+import { connectHarness, notifyOs, restartHarness, stopHarness, type HarnessConnection } from "./desktop";
 
 type Phase = "connecting" | "ready" | "offline";
 
@@ -42,7 +27,7 @@ function invalidationsFor(ev: HarnessEvent): string[][] {
       return [["active"], ["executions"], ["usage"], ["status"]];
     case "account_updated":
     case "account_removed":
-      return [["providers"], ["models"], ["status"], ["limits"]];
+      return [["providers"], ["models"], ["status"], ["limits"], ["reports"]];
     case "models_updated":
       return [["models"], ["providers"], ["status"]];
     case "limits_updated":
@@ -120,8 +105,7 @@ export function HarnessProvider({ children }: { children: ReactNode }) {
       try {
         for await (const ev of client.events(ctrl.signal)) {
           invalidate(invalidationsFor(ev));
-          if (ev.type === "notification")
-            void notifyOs(ev.notification.title, ev.notification.body);
+          if (ev.type === "notification") void notifyOs(ev.notification.title, ev.notification.body);
         }
       } catch {
         /* stream ended */
@@ -172,8 +156,7 @@ export function HarnessProvider({ children }: { children: ReactNode }) {
       stop: async () => {
         stoppedByUser.current = true;
         abort.current?.abort();
-        if (connection && !("__TAURI_INTERNALS__" in window))
-          await client!.shutdown();
+        if (connection && !("__TAURI_INTERNALS__" in window)) await client!.shutdown();
         else await stopHarness();
         setPhase("offline");
         setError("The harness is stopped.");
@@ -197,9 +180,7 @@ export function HarnessProvider({ children }: { children: ReactNode }) {
     [phase, client, connection, error, connect, qc],
   );
 
-  return (
-    <HarnessContext.Provider value={value}>{children}</HarnessContext.Provider>
-  );
+  return <HarnessContext.Provider value={value}>{children}</HarnessContext.Provider>;
 }
 
 export function useHarness(): HarnessContextValue {

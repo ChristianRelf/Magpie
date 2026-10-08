@@ -30,30 +30,26 @@ function ChartTooltip({
   label,
   series,
   bucketMs,
+  utc,
 }: {
   active?: boolean;
   payload?: { dataKey: string; value: number }[];
   label?: number;
   series: Series[];
   bucketMs: number;
+  utc?: boolean;
 }) {
   if (!active || !payload?.length || label === undefined) return null;
   return (
     <div className="min-w-36 rounded-md border border-border-strong bg-surface-2 px-2.5 py-2 text-xs shadow-panel">
-      <div className="mb-1.5 text-2xs text-fg-subtle">
-        {shortDate(label, bucketMs)}
-      </div>
+      <div className="mb-1.5 text-2xs text-fg-subtle">{shortDate(label, bucketMs, utc)}</div>
       <div className="space-y-1">
         {series.map((s) => {
           const p = payload.find((x) => x.dataKey === s.key);
           const v = p?.value;
           return (
             <div key={s.key} className="flex items-center gap-2">
-              <span
-                className="h-0.5 w-3 shrink-0 rounded-full"
-                style={{ background: s.color }}
-                aria-hidden
-              />
+              <span className="h-0.5 w-3 shrink-0 rounded-full" style={{ background: s.color }} aria-hidden />
               <span className="font-mono font-medium text-fg tnum">
                 {v === null || v === undefined ? "—" : (s.format ?? compact)(v)}
               </span>
@@ -73,15 +69,9 @@ export function Legend({ series }: { series: Series[] }) {
       {series.map((s) => (
         <span key={s.key} className="inline-flex items-center gap-1.5">
           {s.kind === "bar" ? (
-            <span
-              className="size-2 rounded-[2px]"
-              style={{ background: s.color }}
-            />
+            <span className="size-2 rounded-[2px]" style={{ background: s.color }} />
           ) : (
-            <span
-              className="h-0.5 w-3 rounded-full"
-              style={{ background: s.color }}
-            />
+            <span className="h-0.5 w-3 rounded-full" style={{ background: s.color }} />
           )}
           {s.label}
         </span>
@@ -103,6 +93,7 @@ export function TimeSeriesChart({
   yFormat = compact,
   onSelectRange,
   dimmed,
+  utc = false,
 }: {
   data: Datum[];
   series: Series[];
@@ -112,21 +103,15 @@ export function TimeSeriesChart({
   yFormat?: (v: number) => string;
   onSelectRange?: (from: number, to: number) => void;
   dimmed?: boolean;
+  utc?: boolean;
 }) {
   const [drag, setDrag] = useState<{ a: number; b: number } | null>(null);
   const barSize = useMemo(
-    () =>
-      Math.max(2, Math.min(24, Math.floor(640 / Math.max(1, data.length)) - 2)),
+    () => Math.max(2, Math.min(24, Math.floor(640 / Math.max(1, data.length)) - 2)),
     [data.length],
   );
   return (
-    <div
-      className={cn(
-        "w-full transition-opacity duration-150",
-        dimmed && "refetching",
-      )}
-      style={{ height }}
-    >
+    <div className={cn("w-full transition-opacity duration-150", dimmed && "refetching")} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
           data={data}
@@ -137,11 +122,7 @@ export function TimeSeriesChart({
             e?.activeLabel !== undefined &&
             setDrag({ a: Number(e.activeLabel), b: Number(e.activeLabel) })
           }
-          onMouseMove={(e) =>
-            drag &&
-            e?.activeLabel !== undefined &&
-            setDrag({ ...drag, b: Number(e.activeLabel) })
-          }
+          onMouseMove={(e) => drag && e?.activeLabel !== undefined && setDrag({ ...drag, b: Number(e.activeLabel) })}
           onMouseUp={() => {
             if (drag && onSelectRange && drag.a !== drag.b) {
               const from = Math.min(drag.a, drag.b);
@@ -156,7 +137,7 @@ export function TimeSeriesChart({
           <XAxis
             dataKey="t"
             type="category"
-            tickFormatter={(t: number) => shortDate(t, bucketMs)}
+            tickFormatter={(t: number) => shortDate(t, bucketMs, utc)}
             tickLine={false}
             axisLine={false}
             minTickGap={48}
@@ -178,7 +159,7 @@ export function TimeSeriesChart({
               fill: "var(--surface-3)",
               fillOpacity: 0.35,
             }}
-            content={<ChartTooltip series={series} bucketMs={bucketMs} />}
+            content={<ChartTooltip series={series} bucketMs={bucketMs} utc={utc} />}
             isAnimationActive={false}
           />
           {series.map((s) =>
@@ -255,11 +236,7 @@ export function BarList({
   const max = Math.max(1, ...items.map((i) => i.value));
   const total = items.reduce((a, b) => a + b.value, 0);
   if (!items.length)
-    return (
-      <div className="py-6 text-center text-xs text-fg-subtle">
-        {empty ?? "No data in this range."}
-      </div>
-    );
+    return <div className="py-6 text-center text-xs text-fg-subtle">{empty ?? "No data in this range."}</div>;
   return (
     <div className="flex flex-col gap-2.5">
       {items.map((it) => {
@@ -276,18 +253,10 @@ export function BarList({
             )}
           >
             <div className="mb-1 flex items-baseline gap-2 text-xs">
-              <span className="min-w-0 flex-1 truncate text-fg">
-                {it.label}
-              </span>
-              {it.secondary && (
-                <span className="text-2xs text-fg-subtle">{it.secondary}</span>
-              )}
-              <span className="font-mono text-[11.5px] text-fg tnum">
-                {format(it.value)}
-              </span>
-              <span className="w-9 text-right font-mono text-2xs text-fg-subtle tnum">
-                {Math.round(share * 100)}%
-              </span>
+              <span className="min-w-0 flex-1 truncate text-fg">{it.label}</span>
+              {it.secondary && <span className="text-2xs text-fg-subtle">{it.secondary}</span>}
+              <span className="font-mono text-[11.5px] text-fg tnum">{format(it.value)}</span>
+              <span className="w-9 text-right font-mono text-2xs text-fg-subtle tnum">{Math.round(share * 100)}%</span>
             </div>
             <div className="h-1.5 rounded-full bg-surface-3">
               <div
@@ -310,23 +279,11 @@ export function BarList({
 }
 
 /** Tiny trend line for stat tiles. */
-export function Sparkline({
-  values,
-  width = 84,
-  height = 22,
-}: {
-  values: number[];
-  width?: number;
-  height?: number;
-}) {
-  if (values.length < 2)
-    return <svg width={width} height={height} aria-hidden />;
+export function Sparkline({ values, width = 84, height = 22 }: { values: number[]; width?: number; height?: number }) {
+  if (values.length < 2) return <svg width={width} height={height} aria-hidden />;
   const max = Math.max(...values, 1);
   const step = width / (values.length - 1);
-  const pts = values.map(
-    (v, i) =>
-      `${(i * step).toFixed(1)},${(height - 2 - (v / max) * (height - 4)).toFixed(1)}`,
-  );
+  const pts = values.map((v, i) => `${(i * step).toFixed(1)},${(height - 2 - (v / max) * (height - 4)).toFixed(1)}`);
   return (
     <svg width={width} height={height} aria-hidden className="overflow-visible">
       <polyline

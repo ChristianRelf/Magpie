@@ -9,12 +9,12 @@ rust-version.workspace = true
 
 [dependencies]
 base64 = "0.22.1"
-magpie-api = { version = "0.1.1", path = "../magpie-api" }
-magpie-core = { version = "0.1.1", path = "../magpie-core" }
-magpie-engine = { version = "0.1.1", path = "../magpie-engine" }
-magpie-providers = { version = "0.1.1", path = "../magpie-providers" }
-magpie-security = { version = "0.1.1", path = "../magpie-security" }
-magpie-store = { version = "0.1.1", path = "../magpie-store" }
+magpie-api = { version = "0.1.2", path = "../magpie-api" }
+magpie-core = { version = "0.1.2", path = "../magpie-core" }
+magpie-engine = { version = "0.1.2", path = "../magpie-engine" }
+magpie-providers = { version = "0.1.2", path = "../magpie-providers" }
+magpie-security = { version = "0.1.2", path = "../magpie-security" }
+magpie-store = { version = "0.1.2", path = "../magpie-store" }
 reqwest = { version = "0.13.3", default-features = false, features = ["json"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"

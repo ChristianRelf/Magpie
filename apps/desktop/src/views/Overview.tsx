@@ -2,39 +2,13 @@ import { useMemo, useState } from "react";
 import { ArrowUpRight, Plug } from "lucide-react";
 import type { LimitState, LimitWindow } from "@magpie/sdk";
 import { TokenActivity } from "@/components/TokenActivity";
+import { AccountActivity, UsageSourcePicker, useUsageSource } from "@/components/AccountActivity";
 import { Page, StatTile, Delta } from "@/components/Page";
-import {
-  RangePicker,
-  toQuery,
-  type RangeValue,
-  rangeLabel,
-} from "@/components/RangePicker";
-import {
-  BarList,
-  Legend,
-  Sparkline,
-  TimeSeriesChart,
-  type Series,
-} from "@/components/charts";
-import {
-  LimitWindowRow,
-  resetText,
-  useNow,
-  windowState,
-} from "@/components/LimitWindows";
-import {
-  Button,
-  EmptyState,
-  Mono,
-  Panel,
-  PanelHeader,
-  Skeleton,
-} from "@/components/ui/core";
-import {
-  ConnectionGlyph,
-  ExecutionGlyph,
-  LimitGlyph,
-} from "@/components/ui/feedback";
+import { RangePicker, toQuery, type RangeValue, rangeLabel } from "@/components/RangePicker";
+import { BarList, Legend, Sparkline, TimeSeriesChart, type Series } from "@/components/charts";
+import { LimitWindowRow, resetText, useNow, windowState } from "@/components/LimitWindows";
+import { Button, EmptyState, Mono, Panel, PanelHeader, Skeleton } from "@/components/ui/core";
+import { ConnectionGlyph, ExecutionGlyph, LimitGlyph } from "@/components/ui/feedback";
 import { ProviderMark } from "@/components/ui/marks";
 import { useNav } from "@/lib/nav";
 import {
@@ -84,6 +58,7 @@ const STATE_RANK: Record<LimitState, number> = {
 
 export function Overview() {
   const [range, setRange] = useState<RangeValue>({ kind: "24h" });
+  const source = useUsageSource();
   const q = toQuery(range);
   const { navigate } = useNav();
   const now = useNow();
@@ -106,8 +81,7 @@ export function Overview() {
     if (p.length <= n) return p;
     const size = Math.ceil(p.length / n);
     const out: number[] = [];
-    for (let i = 0; i < p.length; i += size)
-      out.push(p.slice(i, i + size).reduce((a, b) => a + b, 0));
+    for (let i = 0; i < p.length; i += size) out.push(p.slice(i, i + size).reduce((a, b) => a + b, 0));
     return out;
   }, [points]);
 
@@ -130,8 +104,7 @@ export function Overview() {
     .filter((w) => w.resets_at && Date.parse(w.resets_at) > now)
     .sort((a, b) => Date.parse(a.resets_at!) - Date.parse(b.resets_at!))
     .slice(0, 6);
-  const labelOf = (id: string) =>
-    accounts.find((a) => a.id === id)?.label ?? id;
+  const labelOf = (id: string) => accounts.find((a) => a.id === id)?.label ?? id;
 
   if (providers.isSuccess && accounts.length === 0) {
     return (
@@ -142,11 +115,7 @@ export function Overview() {
           title="Connect your first provider"
           description="Magpie routes requests across the AI accounts you already have. Connect Claude Code, Codex, an API key or a local model server to begin."
           action={
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => navigate("providers", "connect")}
-            >
+            <Button variant="primary" size="md" onClick={() => navigate("providers", "connect")}>
               Connect a provider
             </Button>
           }
@@ -161,22 +130,23 @@ export function Overview() {
   return (
     <Page
       title="Overview"
-      subtitle={rangeLabel(range)}
-      actions={<RangePicker value={range} onChange={setRange} />}
+      subtitle={source.account ? "Account activity and harness status" : rangeLabel(range)}
+      actions={
+        <>
+          <UsageSourcePicker source={source} />
+          <RangePicker value={range} onChange={setRange} daily={!!source.account} />
+        </>
+      }
     >
       <div className="space-y-4 p-5">
-        <TokenActivity
-          onSelectRange={(from, to) => setRange({ kind: "custom", from, to })}
-        />
-        <Panel className="grid grid-cols-2 divide-border md:grid-cols-5 md:divide-x">
+        {!source.account && <TokenActivity onSelectRange={(from, to) => setRange({ kind: "custom", from, to })} />}
+        <Panel
+          className={`grid grid-cols-2 divide-border ${source.account ? "md:grid-cols-4" : "md:grid-cols-5"} md:divide-x`}
+        >
           <StatTile
             label="Harness"
             value={<span className="text-[18px]">Running</span>}
-            sub={
-              status
-                ? `Up ${duration(status.uptime_secs)} · ${status.available_models} models`
-                : " "
-            }
+            sub={status ? `Up ${duration(status.uptime_secs)} · ${status.available_models} models` : " "}
             help="The local harness service. It keeps running independently of this window when background operation is enabled."
           />
           <StatTile
@@ -184,15 +154,13 @@ export function Overview() {
             value={
               <span>
                 {status?.connected_accounts ?? "–"}
-                <span className="text-fg-subtle">
-                  /{status?.accounts ?? "–"}
-                </span>
+                <span className="text-fg-subtle">/{status?.accounts ?? "–"}</span>
               </span>
             }
             sub="connected"
           />
           <StatTile
-            label="Active"
+            label="Active in Magpie"
             value={active.length}
             sub={
               active.length
@@ -204,21 +172,15 @@ export function Overview() {
                 : "No executions running"
             }
           />
-          <StatTile
-            label="Tokens"
-            value={
-              cur ? compact(totalTokens) : <Skeleton className="h-6 w-16" />
-            }
-            sub={
-              cur && prev ? (
-                <Delta current={totalTokens} previous={prevTokens} upIsGood />
-              ) : (
-                "Through the harness"
-              )
-            }
-            help="Input and output tokens through Magpie in the selected range. Account usage outside Magpie is not included."
-            trend={<Sparkline values={spark} />}
-          />
+          {!source.account && (
+            <StatTile
+              label="Tokens"
+              value={cur ? compact(totalTokens) : <Skeleton className="h-6 w-16" />}
+              sub={cur && prev ? <Delta current={totalTokens} previous={prevTokens} upIsGood /> : "Through the harness"}
+              help="Input and output tokens through Magpie in the selected range. Account usage outside Magpie is not included."
+              trend={<Sparkline values={spark} />}
+            />
+          )}
           <StatTile
             label="Usage health"
             value={
@@ -232,107 +194,93 @@ export function Overview() {
           />
         </Panel>
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <Panel className="xl:col-span-2">
-            <PanelHeader
-              title="Token usage"
-              subtitle={
-                cur
-                  ? `${compact(cur.input_tokens)} in · ${compact(cur.output_tokens)} out · ${cur.requests} requests · drag to zoom`
-                  : undefined
-              }
-              actions={<Legend series={TOKEN_SERIES} />}
-            />
-            <div className="px-2 pt-3 pb-2">
-              <TimeSeriesChart
-                data={points as never}
-                series={TOKEN_SERIES}
-                stacked
-                bucketMs={series.data?.bucket_ms ?? 60_000}
-                height={236}
-                dimmed={series.isFetching && series.isPlaceholderData}
-                onSelectRange={(from, to) =>
-                  setRange({ kind: "custom", from, to })
-                }
-              />
-            </div>
-          </Panel>
-          <div className="flex flex-col gap-4">
-            <Panel>
+        {source.account ? (
+          <AccountActivity
+            source={source}
+            range={range}
+            onSelectRange={(from, to) => setRange({ kind: "custom", from, to })}
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <Panel className="xl:col-span-2">
               <PanelHeader
-                title="Provider utilisation"
-                subtitle="Share of tokens through the harness"
+                title="Token usage"
+                subtitle={
+                  cur
+                    ? `${compact(cur.input_tokens)} in · ${compact(cur.output_tokens)} out · ${cur.requests} requests · drag to zoom`
+                    : undefined
+                }
+                actions={<Legend series={TOKEN_SERIES} />}
               />
-              <div className="p-3.5">
-                <BarList
-                  items={(byProvider.data?.rows ?? []).map((r) => ({
-                    key: r.key,
-                    label: providerName(r.key),
-                    value: r.input_tokens + r.output_tokens,
-                    secondary: `${r.requests} req`,
-                    detail: `${compact(r.input_tokens)} input · ${compact(r.output_tokens)} output · ${r.failed} failed`,
-                  }))}
-                  empty="No executions in this range."
+              <div className="px-2 pt-3 pb-2">
+                <TimeSeriesChart
+                  data={points as never}
+                  series={TOKEN_SERIES}
+                  stacked
+                  bucketMs={series.data?.bucket_ms ?? 60_000}
+                  height={236}
+                  dimmed={series.isFetching && series.isPlaceholderData}
+                  onSelectRange={(from, to) => setRange({ kind: "custom", from, to })}
                 />
               </div>
             </Panel>
-            <Panel className="flex-1">
-              <PanelHeader
-                title="Limits"
-                subtitle="Most constrained window per provider"
-                actions={
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    onClick={() => navigate("providers")}
-                  >
-                    Details
-                  </Button>
-                }
-              />
-              <div className="space-y-3.5 p-3.5">
-                {limits.length === 0 && (
-                  <p className="text-xs text-fg-subtle">
-                    No providers connected.
-                  </p>
-                )}
-                {limits.map((l) => {
-                  const w = [...l.windows].sort(
-                    (a, b) =>
-                      STATE_RANK[windowState(b, now)] -
-                        STATE_RANK[windowState(a, now)] ||
-                      (b.used_percent ?? 0) - (a.used_percent ?? 0),
-                  )[0];
-                  return (
-                    <div key={l.account_id}>
-                      <div className="mb-1 text-2xs text-fg-subtle">
-                        {labelOf(l.account_id)}
+            <div className="flex flex-col gap-4">
+              <Panel>
+                <PanelHeader title="Provider utilisation" subtitle="Share of tokens through the harness" />
+                <div className="p-3.5">
+                  <BarList
+                    items={(byProvider.data?.rows ?? []).map((r) => ({
+                      key: r.key,
+                      label: providerName(r.key),
+                      value: r.input_tokens + r.output_tokens,
+                      secondary: `${r.requests} req`,
+                      detail: `${compact(r.input_tokens)} input · ${compact(r.output_tokens)} output · ${r.failed} failed`,
+                    }))}
+                    empty="No executions in this range."
+                  />
+                </div>
+              </Panel>
+              <Panel className="flex-1">
+                <PanelHeader
+                  title="Limits"
+                  subtitle="Most constrained window per provider"
+                  actions={
+                    <Button size="xs" variant="ghost" onClick={() => navigate("providers")}>
+                      Details
+                    </Button>
+                  }
+                />
+                <div className="space-y-3.5 p-3.5">
+                  {limits.length === 0 && <p className="text-xs text-fg-subtle">No providers connected.</p>}
+                  {limits.map((l) => {
+                    const w = [...l.windows].sort(
+                      (a, b) =>
+                        STATE_RANK[windowState(b, now)] - STATE_RANK[windowState(a, now)] ||
+                        (b.used_percent ?? 0) - (a.used_percent ?? 0),
+                    )[0];
+                    return (
+                      <div key={l.account_id}>
+                        <div className="mb-1 text-2xs text-fg-subtle">{labelOf(l.account_id)}</div>
+                        {w ? (
+                          <LimitWindowRow w={w} now={now} />
+                        ) : (
+                          <p className="text-xs text-fg-subtle">Allowance not reported by provider</p>
+                        )}
                       </div>
-                      {w ? (
-                        <LimitWindowRow w={w} now={now} />
-                      ) : (
-                        <p className="text-xs text-fg-subtle">
-                          Allowance not reported by provider
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </Panel>
+                    );
+                  })}
+                </div>
+              </Panel>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <Panel>
             <PanelHeader
               title="Connected providers"
               actions={
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  onClick={() => navigate("providers")}
-                >
+                <Button size="xs" variant="ghost" onClick={() => navigate("providers")}>
                   Manage
                 </Button>
               }
@@ -348,21 +296,14 @@ export function Overview() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 text-[12.5px] font-medium">
                       <span className="truncate">{a.label}</span>
-                      <ConnectionGlyph
-                        status={a.status}
-                        className="size-3 text-fg-subtle"
-                      />
+                      <ConnectionGlyph status={a.status} className="size-3 text-fg-subtle" />
                     </div>
                     <div className="truncate text-2xs text-fg-subtle">
                       {a.plan ? `${a.plan} · ` : ""}
-                      {BILLING_LABELS[a.billing_mode]} ·{" "}
-                      {a.available_model_count} models
+                      {BILLING_LABELS[a.billing_mode]} · {a.available_model_count} models
                     </div>
                   </div>
-                  <LimitGlyph
-                    state={a.limits?.state ?? "unknown"}
-                    className="text-fg-muted"
-                  />
+                  <LimitGlyph state={a.limits?.state ?? "unknown"} className="text-fg-muted" />
                 </button>
               ))}
             </div>
@@ -371,11 +312,7 @@ export function Overview() {
             <PanelHeader
               title="Recent executions"
               actions={
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  onClick={() => navigate("activity")}
-                >
+                <Button size="xs" variant="ghost" onClick={() => navigate("activity")}>
                   View all
                 </Button>
               }
@@ -383,8 +320,7 @@ export function Overview() {
             <div className="divide-y divide-border">
               {(recent.data?.data ?? []).length === 0 && (
                 <p className="px-3.5 py-6 text-center text-xs text-fg-subtle">
-                  No executions yet. Send a request to the harness to see it
-                  here.
+                  No executions yet. Send a request to the harness to see it here.
                 </p>
               )}
               {(recent.data?.data ?? []).map((e) => (
@@ -395,53 +331,33 @@ export function Overview() {
                 >
                   <ExecutionGlyph status={e.status} />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[12.5px]">
-                      {e.model?.display_name ?? "Not routed"}
-                    </div>
+                    <div className="truncate text-[12.5px]">{e.model?.display_name ?? "Not routed"}</div>
                     <div className="truncate text-2xs text-fg-subtle">
                       {TASK_LABELS[e.task]} · {relative(e.created_at, now)}
                     </div>
                   </div>
                   <div className="text-right">
                     <Mono className="text-[11px] text-fg-muted">
-                      {compact(
-                        (e.usage.input_tokens ?? 0) +
-                          (e.usage.output_tokens ?? 0),
-                      )}
+                      {compact((e.usage.input_tokens ?? 0) + (e.usage.output_tokens ?? 0))}
                     </Mono>
-                    <div className="font-mono text-2xs text-fg-subtle">
-                      {ms(e.duration_ms)}
-                    </div>
+                    <div className="font-mono text-2xs text-fg-subtle">{ms(e.duration_ms)}</div>
                   </div>
                 </button>
               ))}
             </div>
           </Panel>
           <Panel>
-            <PanelHeader
-              title="Upcoming resets"
-              subtitle="Known provider reset times"
-            />
+            <PanelHeader title="Upcoming resets" subtitle="Known provider reset times" />
             <div className="divide-y divide-border">
               {resets.length === 0 && (
-                <p className="px-3.5 py-6 text-center text-xs text-fg-subtle">
-                  No reset times reported.
-                </p>
+                <p className="px-3.5 py-6 text-center text-xs text-fg-subtle">No reset times reported.</p>
               )}
               {resets.map((w) => (
-                <div
-                  key={`${w.account_id}-${w.key}`}
-                  className="flex items-center gap-2.5 px-3.5 py-2"
-                >
-                  <LimitGlyph
-                    state={windowState(w, now)}
-                    className="text-fg-muted"
-                  />
+                <div key={`${w.account_id}-${w.key}`} className="flex items-center gap-2.5 px-3.5 py-2">
+                  <LimitGlyph state={windowState(w, now)} className="text-fg-muted" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[12.5px]">{w.label}</div>
-                    <div className="truncate text-2xs text-fg-subtle">
-                      {labelOf(w.account_id)}
-                    </div>
+                    <div className="truncate text-2xs text-fg-subtle">{labelOf(w.account_id)}</div>
                   </div>
                   <div className="text-right text-2xs text-fg-muted">
                     <div>{resetText(w, now)}</div>

@@ -175,14 +175,17 @@ impl Harness {
         self.import_claude_usage(account_id);
         let adapter =
             self.adapter_for(account_id).ok_or_else(|| HarnessError::new(ErrorKind::Authentication, "Account is not connected"))?;
-        if adapter.supports_limit_polling() {
-            let windows = adapter.fetch_limits().await?;
-            self.apply_limits(account_id, windows);
-        }
+        let limit_result = if adapter.supports_limit_polling() {
+            adapter.fetch_limits().await.map(|windows| self.apply_limits(account_id, windows))
+        } else {
+            Ok(())
+        };
+        // Usage history is independent of the current quota endpoint.
         if let Ok(Some(report)) = adapter.fetch_usage_report().await {
             self.usage_reports.write().insert(account_id.to_string(), report);
             self.emit(HarnessEvent::LimitsUpdated { account_id: account_id.to_string() });
         }
+        limit_result?;
         Ok(self.limits.read().get(account_id).cloned().unwrap_or_default())
     }
 }

@@ -4,9 +4,7 @@ import { CalendarRange, Check } from "lucide-react";
 import type { RangeQuery } from "@magpie/sdk";
 import { Button, cn } from "./ui/core";
 
-export type RangeValue =
-  | { kind: "1h" | "24h" | "7d" | "30d" }
-  | { kind: "custom"; from: number; to: number };
+export type RangeValue = { kind: "1h" | "24h" | "7d" | "30d" } | { kind: "custom"; from: number; to: number };
 
 export const PRESETS: {
   value: "1h" | "24h" | "7d" | "30d";
@@ -20,9 +18,7 @@ export const PRESETS: {
 ];
 
 export function toQuery(r: RangeValue): RangeQuery {
-  return r.kind === "custom"
-    ? { range: "custom", from: r.from, to: r.to }
-    : { range: r.kind };
+  return r.kind === "custom" ? { range: "custom", from: r.from, to: r.to } : { range: r.kind };
 }
 
 export function rangeLabel(r: RangeValue): string {
@@ -46,30 +42,28 @@ function toLocalInput(t: number): string {
 export function RangePicker({
   value,
   onChange,
+  daily = false,
 }: {
   value: RangeValue;
   onChange: (v: RangeValue) => void;
+  daily?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const now = Date.now();
-  const [from, setFrom] = useState(
-    toLocalInput(value.kind === "custom" ? value.from : now - 86_400_000),
-  );
-  const [to, setTo] = useState(
-    toLocalInput(value.kind === "custom" ? value.to : now),
-  );
+  const presets = daily
+    ? PRESETS.filter((p) => p.value !== "1h").map((p) =>
+        p.value === "24h" ? { ...p, label: "Today", long: "Today (UTC)" } : p,
+      )
+    : PRESETS;
+  const [from, setFrom] = useState(toLocalInput(value.kind === "custom" ? value.from : now - 86_400_000));
+  const [to, setTo] = useState(toLocalInput(value.kind === "custom" ? value.to : now));
   const fromMs = Date.parse(from);
   const toMs = Date.parse(to);
-  const valid =
-    Number.isFinite(fromMs) && Number.isFinite(toMs) && toMs > fromMs;
+  const valid = Number.isFinite(fromMs) && Number.isFinite(toMs) && toMs > fromMs;
   return (
-    <div
-      className="inline-flex items-center gap-1"
-      role="group"
-      aria-label="Time range"
-    >
+    <div className="inline-flex items-center gap-1" role="group" aria-label="Time range">
       <div className="inline-flex rounded-md border border-border bg-bg-subtle p-0.5">
-        {PRESETS.map((p) => {
+        {presets.map((p) => {
           const active = value.kind === p.value;
           return (
             <button
@@ -102,9 +96,7 @@ export function RangePicker({
             )}
           >
             <CalendarRange className="size-3.5" />
-            {value.kind === "custom" && (
-              <span className="max-w-56 truncate">{rangeLabel(value)}</span>
-            )}
+            {value.kind === "custom" && <span className="max-w-56 truncate">{rangeLabel(value)}</span>}
           </button>
         </Popover.Trigger>
         <Popover.Portal>
@@ -113,7 +105,7 @@ export function RangePicker({
             sideOffset={6}
             className="fade-in z-50 w-64 rounded-lg border border-border-strong bg-surface-2 p-1 shadow-panel"
           >
-            {PRESETS.map((p) => (
+            {presets.map((p) => (
               <button
                 key={p.value}
                 onClick={() => {
@@ -123,16 +115,14 @@ export function RangePicker({
                 className="flex w-full items-center gap-2 rounded-[5px] px-2 py-1.5 text-left text-xs hover:bg-surface-3"
               >
                 <span className="w-4">
-                  {value.kind === p.value && (
-                    <Check className="size-3.5" strokeWidth={2.75} />
-                  )}
+                  {value.kind === p.value && <Check className="size-3.5" strokeWidth={2.75} />}
                 </span>
                 {p.long}
               </button>
             ))}
             <div className="mt-1 space-y-2 border-t border-border p-2">
               <div className="text-2xs font-medium text-fg-subtle">
-                Custom range
+                {daily ? "Custom range · whole UTC days" : "Custom range"}
               </div>
               <input
                 type="datetime-local"

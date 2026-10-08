@@ -28,24 +28,16 @@ export function integer(n: number | null | undefined): string {
   return Math.round(n).toLocaleString("en-US");
 }
 
-export function usd(
-  n: number | null | undefined,
-  opts: { precise?: boolean } = {},
-): string {
+export function usd(n: number | null | undefined, opts: { precise?: boolean } = {}): string {
   if (n === null || n === undefined) return "—";
   if (n === 0) return "$0";
-  if (opts.precise || Math.abs(n) < 0.01)
-    return `$${n.toFixed(n < 0.0001 ? 6 : 4)}`;
+  if (opts.precise || Math.abs(n) < 0.01) return `$${n.toFixed(n < 0.0001 ? 6 : 4)}`;
   if (Math.abs(n) < 100) return `$${n.toFixed(2)}`;
   return `$${Math.round(n).toLocaleString("en-US")}`;
 }
 
-export function percent(
-  fraction: number | null | undefined,
-  digits = 0,
-): string {
-  if (fraction === null || fraction === undefined || Number.isNaN(fraction))
-    return "—";
+export function percent(fraction: number | null | undefined, digits = 0): string {
+  if (fraction === null || fraction === undefined || Number.isNaN(fraction)) return "—";
   return `${(fraction * 100).toFixed(digits)}%`;
 }
 
@@ -58,18 +50,13 @@ export function ms(n: number | null | undefined): string {
 
 export function duration(secs: number): string {
   const s = Math.max(0, Math.round(secs));
-  if (s >= 86_400)
-    return `${Math.floor(s / 86_400)}d ${Math.floor((s % 86_400) / 3600)}h`;
-  if (s >= 3600)
-    return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+  if (s >= 86_400) return `${Math.floor(s / 86_400)}d ${Math.floor((s % 86_400) / 3600)}h`;
+  if (s >= 3600) return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
   if (s >= 60) return `${Math.floor(s / 60)}m`;
   return `${s}s`;
 }
 
-export function relative(
-  iso: string | number | null | undefined,
-  now = Date.now(),
-): string {
+export function relative(iso: string | number | null | undefined, now = Date.now()): string {
   if (iso === null || iso === undefined) return "—";
   const t = typeof iso === "number" ? iso : Date.parse(iso);
   if (Number.isNaN(t)) return "—";
@@ -98,10 +85,10 @@ export function dateTime(iso: string | number): string {
   });
 }
 
-export function shortDate(t: number, bucketMs: number): string {
+export function shortDate(t: number, bucketMs: number, utc = false): string {
   const d = new Date(t);
   if (bucketMs >= 86_400_000)
-    return d.toLocaleDateString([], { month: "short", day: "numeric" });
+    return d.toLocaleDateString([], { month: "short", day: "numeric", timeZone: utc ? "UTC" : undefined });
   if (bucketMs >= 3_600_000)
     return d.toLocaleString([], {
       month: "short",
@@ -171,8 +158,7 @@ export const PROVENANCE_LABELS: Record<Provenance, string> = {
 export const PROVENANCE_HELP: Record<Provenance, string> = {
   reported: "Obtained directly from the provider.",
   calculated: "Computed locally from reported token counts and known prices.",
-  estimated:
-    "Inferred from incomplete data, such as text length or catalog prices.",
+  estimated: "Inferred from incomplete data, such as text length or catalog prices.",
   unavailable: "The provider does not expose this information.",
 };
 

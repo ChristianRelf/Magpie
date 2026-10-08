@@ -1,6 +1,6 @@
 {
   "name": "@magpie/sdk",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "TypeScript client for the Magpie local AI harness",
   "license": "MIT",
   "type": "module",

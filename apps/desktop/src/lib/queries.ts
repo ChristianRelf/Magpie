@@ -58,12 +58,12 @@ export function useUsageSummary(q: RangeQuery) {
   });
 }
 
-export function useTimeseries(q: RangeQuery & { group_by?: GroupBy; bucket_ms?: number }) {
+export function useTimeseries(q: RangeQuery & { group_by?: GroupBy; bucket_ms?: number }, active = true) {
   const { client, enabled } = useReady();
   return useQuery({
     queryKey: ["usage", "timeseries", q],
     queryFn: () => client.usageTimeseries(q),
-    enabled,
+    enabled: enabled && active,
     placeholderData: keepPreviousData,
   });
 }
@@ -84,6 +84,7 @@ export function useProviderReports() {
     queryKey: ["reports"],
     queryFn: () => client.providerReports(),
     enabled,
+    refetchInterval: 30_000,
   });
 }
 

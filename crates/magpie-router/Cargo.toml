@@ -8,7 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-magpie-core = { version = "0.1.1", path = "../magpie-core" }
+magpie-core = { version = "0.1.2", path = "../magpie-core" }
 serde = "1.0.229"
 serde_json = "1.0.151"
 tracing = "0.1.44"

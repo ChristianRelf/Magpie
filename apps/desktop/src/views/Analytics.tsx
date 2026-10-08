@@ -2,29 +2,14 @@ import { useState } from "react";
 import { Download } from "lucide-react";
 import type { GroupBy } from "@magpie/sdk";
 import { TokenActivity } from "@/components/TokenActivity";
+import { AccountActivity, UsageSourcePicker, useUsageSource } from "@/components/AccountActivity";
 import { Page, StatTile } from "@/components/Page";
-import {
-  RangePicker,
-  rangeLabel,
-  toQuery,
-  type RangeValue,
-} from "@/components/RangePicker";
-import {
-  BarList,
-  Legend,
-  TimeSeriesChart,
-  type Series,
-} from "@/components/charts";
+import { RangePicker, rangeLabel, toQuery, type RangeValue } from "@/components/RangePicker";
+import { BarList, Legend, TimeSeriesChart, type Series } from "@/components/charts";
 import { Button, Panel, PanelHeader } from "@/components/ui/core";
 import { Select, Segmented } from "@/components/ui/controls";
 import { QueryState } from "@/components/QueryState";
-import {
-  useBreakdown,
-  useModels,
-  useProviders,
-  useTimeseries,
-  useUsageSummary,
-} from "@/lib/queries";
+import { useBreakdown, useModels, useProviders, useTimeseries, useUsageSummary } from "@/lib/queries";
 import { useClient } from "@/lib/harness";
 import { useAction } from "@/lib/action";
 import { compact, ms, percent, providerName, usd } from "@/lib/format";
@@ -45,6 +30,7 @@ const tokenSeries: Series[] = [
   },
 ];
 export function Analytics() {
+  const source = useUsageSource();
   const [range, setRange] = useState<RangeValue>({ kind: "7d" });
   const [provider, setProvider] = useState("all");
   const [model, setModel] = useState("all");
@@ -63,36 +49,43 @@ export function Analytics() {
   const client = useClient();
   const action = useAction();
   const current = summary.data?.current;
-  const selectRange = (from: number, to: number) =>
-    setRange({ kind: "custom", from, to });
+  const selectRange = (from: number, to: number) => setRange({ kind: "custom", from, to });
   const plotted =
     metric === "tokens"
       ? tokenSeries
       : [
           {
             key: metric,
-            label:
-              metric === "requests"
-                ? "Requests"
-                : metric === "cost_usd"
-                  ? "Cost (mixed provenance)"
-                  : "Latency",
+            label: metric === "requests" ? "Requests" : metric === "cost_usd" ? "Cost (mixed provenance)" : "Latency",
             color: "var(--series-1)",
             kind: "line" as const,
-            format:
-              metric === "cost_usd"
-                ? usd
-                : metric === "avg_duration_ms"
-                  ? ms
-                  : compact,
+            format: metric === "cost_usd" ? usd : metric === "avg_duration_ms" ? ms : compact,
           },
         ];
+  if (source.account)
+    return (
+      <Page
+        title="Analytics"
+        subtitle="Provider-reported account usage"
+        actions={
+          <>
+            <UsageSourcePicker source={source} />
+            <RangePicker value={range} onChange={setRange} daily />
+          </>
+        }
+      >
+        <div className="space-y-4 p-5">
+          <AccountActivity source={source} range={range} onSelectRange={selectRange} />
+        </div>
+      </Page>
+    );
   return (
     <Page
       title="Analytics"
       subtitle={rangeLabel(range)}
       actions={
         <>
+          <UsageSourcePicker source={source} />
           <RangePicker value={range} onChange={setRange} />
           <Button
             icon={<Download className="size-3.5" />}
@@ -120,9 +113,10 @@ export function Analytics() {
             }}
             options={[
               { value: "all", label: "All providers" },
-              ...[
-                ...new Set(providers.data?.accounts.map((a) => a.kind) ?? []),
-              ].map((p) => ({ value: p, label: providerName(p) })),
+              ...[...new Set(providers.data?.accounts.map((a) => a.kind) ?? [])].map((p) => ({
+                value: p,
+                label: providerName(p),
+              })),
             ]}
           />
           <Select
@@ -140,9 +134,7 @@ export function Analytics() {
                 })),
             ]}
           />
-          <span className="ml-auto text-2xs text-fg-subtle">
-            Local harness usage
-          </span>
+          <span className="ml-auto text-2xs text-fg-subtle">Local harness usage</span>
         </>
       }
     >
@@ -156,19 +148,11 @@ export function Analytics() {
         }}
       />
       <div className="space-y-4 p-5">
-        <TokenActivity
-          provider={q.provider}
-          modelKey={q.model_key}
-          onSelectRange={selectRange}
-        />
+        <TokenActivity provider={q.provider} modelKey={q.model_key} onSelectRange={selectRange} />
         <Panel className="grid grid-cols-2 divide-border lg:grid-cols-4 lg:divide-x">
           <StatTile
             label="Tokens"
-            value={compact(
-              current
-                ? current.input_tokens + current.output_tokens
-                : undefined,
-            )}
+            value={compact(current ? current.input_tokens + current.output_tokens : undefined)}
             sub={
               current
                 ? `${current.tokens_reported_requests} reported · ${current.tokens_estimated_requests} estimated requests`
@@ -178,19 +162,13 @@ export function Analytics() {
           <StatTile
             label="Requests"
             value={compact(current?.requests)}
-            sub={
-              current
-                ? `${current.failed} failed · ${current.cancelled} cancelled`
-                : ""
-            }
+            sub={current ? `${current.failed} failed · ${current.cancelled} cancelled` : ""}
           />
           <StatTile
             label="Success rate"
             value={percent(
-              current &&
-                current.succeeded + current.failed + current.cancelled > 0
-                ? current.succeeded /
-                    (current.succeeded + current.failed + current.cancelled)
+              current && current.succeeded + current.failed + current.cancelled > 0
+                ? current.succeeded / (current.succeeded + current.failed + current.cancelled)
                 : null,
             )}
             sub="Calculated from completed requests"
@@ -231,13 +209,7 @@ export function Analytics() {
               bucketMs={series.data?.bucket_ms ?? 3_600_000}
               stacked={metric === "tokens"}
               onSelectRange={selectRange}
-              yFormat={
-                metric === "cost_usd"
-                  ? usd
-                  : metric === "avg_duration_ms"
-                    ? ms
-                    : compact
-              }
+              yFormat={metric === "cost_usd" ? usd : metric === "avg_duration_ms" ? ms : compact}
               dimmed={series.isFetching}
             />
           </div>
@@ -279,18 +251,9 @@ export function Analytics() {
               subtitle="USD · keep reported, calculated and estimated figures separate"
             />
             <div className="grid grid-cols-2 gap-y-2 py-2">
-              <StatTile
-                label="Provider-reported"
-                value={usd(current?.cost_reported_usd)}
-              />
-              <StatTile
-                label="Calculated"
-                value={usd(current?.cost_calculated_usd)}
-              />
-              <StatTile
-                label="Estimated"
-                value={usd(current?.cost_estimated_usd)}
-              />
+              <StatTile label="Provider-reported" value={usd(current?.cost_reported_usd)} />
+              <StatTile label="Calculated" value={usd(current?.cost_calculated_usd)} />
+              <StatTile label="Estimated" value={usd(current?.cost_estimated_usd)} />
               <StatTile
                 label="Subscription equivalent"
                 value={usd(current?.api_equivalent_usd)}
@@ -298,24 +261,14 @@ export function Analytics() {
               />
             </div>
             <p className="border-t border-border px-4 py-3 text-2xs text-fg-subtle">
-              Missing prices are excluded. Costs cover Magpie executions only;
-              this is not your provider invoice.
+              Missing prices are excluded. Costs cover Magpie executions only; this is not your provider invoice.
             </p>
           </Panel>
         </div>
         <Panel className="grid grid-cols-2 divide-border lg:grid-cols-4 lg:divide-x">
-          <StatTile
-            label="Cached input tokens"
-            value={compact(current?.cached_tokens)}
-          />
-          <StatTile
-            label="Reasoning tokens"
-            value={compact(current?.reasoning_tokens)}
-          />
-          <StatTile
-            label="Requests per minute"
-            value={current?.requests_per_minute.toFixed(2) ?? "—"}
-          />
+          <StatTile label="Cached input tokens" value={compact(current?.cached_tokens)} />
+          <StatTile label="Reasoning tokens" value={compact(current?.reasoning_tokens)} />
+          <StatTile label="Requests per minute" value={current?.requests_per_minute.toFixed(2) ?? "—"} />
           <StatTile label="Fallbacks" value={compact(current?.fallbacks)} />
         </Panel>
         <Panel>

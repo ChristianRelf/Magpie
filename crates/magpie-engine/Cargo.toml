@@ -12,11 +12,11 @@ async-trait = "0.1.92"
 chrono = "0.4.45"
 dirs = "7.0.0"
 futures = "0.3.34"
-magpie-core = { version = "0.1.1", path = "../magpie-core" }
-magpie-providers = { version = "0.1.1", path = "../magpie-providers" }
-magpie-router = { version = "0.1.1", path = "../magpie-router" }
-magpie-security = { version = "0.1.1", path = "../magpie-security" }
-magpie-store = { version = "0.1.1", path = "../magpie-store" }
+magpie-core = { version = "0.1.2", path = "../magpie-core" }
+magpie-providers = { version = "0.1.2", path = "../magpie-providers" }
+magpie-router = { version = "0.1.2", path = "../magpie-router" }
+magpie-security = { version = "0.1.2", path = "../magpie-security" }
+magpie-store = { version = "0.1.2", path = "../magpie-store" }
 parking_lot = "0.12.5"
 serde = "1.0.229"
 serde_json = "1.0.151"

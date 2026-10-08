@@ -12,8 +12,8 @@ anyhow = "1.0.104"
 chrono = "0.4.45"
 clap = { version = "4.5.61", features = ["derive", "env"] }
 futures = "0.3.34"
-magpie-core = { version = "0.1.1", path = "../../crates/magpie-core" }
-magpie-runtime = { version = "0.1.1", path = "../../crates/magpie-runtime" }
+magpie-core = { version = "0.1.2", path = "../../crates/magpie-core" }
+magpie-runtime = { version = "0.1.2", path = "../../crates/magpie-runtime" }
 reqwest = { version = "0.13.3", default-features = false, features = ["json", "stream"] }
 serde = "1.0.229"
 serde_json = "1.0.151"

@@ -1,6 +1,6 @@
 # Provider support and limitations
 
-Reviewed against official documentation on 2026-10-08. Automated checks use isolated fixtures. No live account was used or billed during this implementation; protocol support below is implemented, not a claim of live certification for every provider/version.
+Reviewed against official documentation on 2026-10-08. Automated checks use isolated fixtures. No live model request was made or billed during this implementation; protocol support below is implemented, not a claim of live certification for every provider/version.
 
 | Connection              | Authentication and execution                                      | Discovery                                         | Usage and quotas                                                                |
 | ----------------------- | ----------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------- |
@@ -59,3 +59,9 @@ node scripts/provider-smoke.mjs --allow-real-provider
 ```
 
 This makes one short request, disables fallback and can consume allowance or incur cost. CLI authentication and account-specific quotas additionally need manual verification on each supported operating system before release.
+
+## Codex account activity
+
+Overview and Analytics use the official Codex app-server `account/usage/read` report for connected Codex accounts. The Usage source selector switches between account history (including external Codex clients) and requests executed through Magpie. These totals are never added together. Account reports contain daily token buckets, not per-request model, latency or cost data; dates are UTC and unavailable dates remain unknown. Today is a reported snapshot, not a live token stream. Refresh usage requests a fresh report; automatic provider monitoring checks every two minutes with backoff. Older Codex versions and API-key-only authentication may not support account history.
+
+Reference: [Codex app-server account usage](https://learn.chatgpt.com/docs/app-server#7-token-usage-chatgpt). A read-only metadata check succeeded with Codex CLI 0.156.1 on the development machine; no model execution was used for this check.

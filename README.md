@@ -6,14 +6,14 @@ The Rust service runs independently of the React/Tauri window. Connect an API ke
 
 ## Getting started
 
-1. Download an installer from [Magpie v0.1](https://github.com/ChristianRelf/Magpie/releases/tag/v0.1), install it and open Magpie.
+1. Download an installer from [the latest Magpie release](https://github.com/ChristianRelf/Magpie/releases/latest), install it and open Magpie.
 2. Connect a provider. API credentials go into your operating system's credential manager. CLI sign-in stays with the official CLI.
 3. Choose a routing preset. Background operation and start on login are opt-in.
 4. Create an integration key and copy the endpoint from Integrations.
 
 The control centre includes provider and model management, execution inspection, routing priorities, scoped integration keys, persistent settings, Recharts telemetry graphs and a year-long token activity grid. Daily, weekly and cumulative heatmap modes use local execution records, with hover details and date selection. Missing provider quotas remain unavailable.
 
-The v0.1 release includes Linux x64 `.deb` and AppImage, Windows x64 NSIS, and Apple Silicon/Intel macOS DMG installers, with SHA-256 checksums. All four platform build/test jobs passed. These builds have no production code-signing/notarisation or configured signed update channel. Read the release notes and [verification record](docs/STATUS.md) for the remaining integration, installation and dependency-review limitations.
+The release includes Linux x64 `.deb` and AppImage, Windows x64 NSIS, and Apple Silicon/Intel macOS DMG installers, with SHA-256 checksums. All four platform build/test jobs passed. These builds have no production code-signing/notarisation or configured signed update channel. Read the release notes and [verification record](docs/STATUS.md) for the remaining integration, installation and dependency-review limitations.
 
 ## Local API
 
