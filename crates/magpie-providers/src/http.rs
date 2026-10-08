@@ -12,6 +12,9 @@ use reqwest::header::HeaderMap;
 pub fn client() -> reqwest::Client {
     reqwest::Client::builder()
         .user_agent(format!("{}/{}", PRODUCT_NAME, VERSION))
+        // Custom authentication headers (e.g. x-api-key) must never follow
+        // an endpoint redirect to another service.
+        .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(Duration::from_secs(15))
         .pool_idle_timeout(Duration::from_secs(90))
         .build()
@@ -398,6 +401,31 @@ mod tests {
             r#"{"error":{"message":"Incorrect API key provided: sk-proj-abcdefghijklmnopqrstuvwxyz"}}"#,
         );
         assert!(!e.message.contains("abcdefghijklmnop"));
+    }
+
+    #[tokio::test]
+    async fn authenticated_requests_do_not_follow_redirects() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let target = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let location = format!("http://{}/unexpected", target.local_addr().unwrap());
+        let url = format!("http://{}/models", origin.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (mut connection, _) = origin.accept().await.unwrap();
+            let mut request = [0; 4096];
+            connection.read(&mut request).await.unwrap();
+            connection
+                .write_all(
+                    format!("HTTP/1.1 307 Temporary Redirect\r\nLocation: {location}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                        .as_bytes(),
+                )
+                .await
+                .unwrap();
+        });
+        let response = client().get(url).header("x-api-key", "test-only-sentinel").timeout(Duration::from_secs(2)).send().await.unwrap();
+        assert_eq!(response.status().as_u16(), 307);
+        assert!(tokio::time::timeout(Duration::from_millis(100), target.accept()).await.is_err());
+        server.await.unwrap();
     }
 
     #[test]

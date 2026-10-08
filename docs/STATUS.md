@@ -18,11 +18,12 @@ Updated 2026-10-08. Implemented code and verified release behaviour are recorded
 ## Verified in this workspace
 
 - **103 Rust tests passed**, covering API authentication/scopes, adapter conversion, route selection, fallback, usage/costs, limits, secret storage, persistence/migrations and engine error cases; includes two native command tests.
+- The provider suite also passed its new redirect regression (26 provider tests): custom authentication headers cannot follow HTTP redirects to another endpoint.
 - TypeScript typecheck and Vite production build passed. Four SDK streaming tests passed; SDK build and pack completed.
 - Three calendar aggregation tests passed. One run timed out under concurrent native compilation; date formatting was changed to reuse formatters, and the rerun passed.
 - Playwright passed an isolated end-to-end browser flow using the real Rust harness and an explicitly identified local HTTP fixture: onboarding, connect/discovery, execution and telemetry, every screen, calendar modes, favourites, execution details, routing persistence, key restrictions/revocation and settings after reload.
 - Actual Linux Tauri/WebKit window launched under Xvfb with an isolated D-Bus session. UI-to-harness connection worked; default close stopped the service; the background opt-in preserved it after UI exit. Screenshot inspected. Initial headless runs stalled on the host's missing desktop portal; the isolated bus resolved the test environment issue.
-- Linux `.deb` and AppImage were built. Final rebuild with the latest changes is being verified.
+- Linux `.deb` and AppImage were built. The quota-corrected Linux rebuild completed; the final redirect safeguard is being included in release artifacts.
 - JavaScript production dependency audit: no known vulnerabilities. Rust audit completed with two informational transitive GTK findings; see SECURITY.md. Do not describe the Rust audit as clean.
 - Commits are pushed to `origin/main` as requested. No live provider calls, paid execution, signing/notarisation or public release have been claimed.
 

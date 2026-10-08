@@ -2,7 +2,7 @@
 
 Magpie runs locally and has no required hosted backend. Provider requests go to the account's configured endpoint or its official CLI. There is no analytics upload. Update checks contact only the release-time HTTPS channel when configured and enabled.
 
-Provider API keys use the operating system credential manager. Production writes fail closed when that store is unavailable; unlock Keychain/Credential Manager/Secret Service and reconnect. `MAGPIE_SECRET_STORE=file` is honoured only by debug builds for isolated testing. Production does not silently downgrade credentials to plaintext.
+Provider HTTP requests do not follow redirects, preventing custom authentication headers from being forwarded to a different endpoint. Provider API keys use the operating system credential manager. Production writes fail closed when that store is unavailable; unlock Keychain/Credential Manager/Secret Service and reconnect. `MAGPIE_SECRET_STORE=file` is honoured only by debug builds for isolated testing. Production does not silently downgrade credentials to plaintext.
 
 The API binds to loopback by default, validates Host headers and requires a bearer token except for minimal liveness. Client keys are scoped, hashed and revocable. The local owner's bootstrap token is in the private per-user data directory; same-user malware is outside this trust boundary. Do not share that directory or the owner's token. Explicit network binding is an advanced configuration and requires your own transport protection; Magpie does not supply TLS for remote deployment.
 
