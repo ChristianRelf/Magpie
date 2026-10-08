@@ -34,51 +34,33 @@ const variants: Record<Variant, string> = {
 };
 
 const sizes: Record<Size, string> = {
-  xs: "h-6 px-2 text-2xs gap-1 rounded-[5px]",
-  sm: "h-7 px-2.5 text-xs gap-1.5 rounded-md",
-  md: "h-8 px-3 text-[13px] gap-2 rounded-md",
+  xs: "h-7 px-2.5 text-xs gap-1.5 rounded-md",
+  sm: "h-9 px-3 text-sm gap-2 rounded-lg",
+  md: "h-10 px-4 text-sm gap-2 rounded-lg",
 };
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  function Button(
-    {
-      variant = "secondary",
-      size = "sm",
-      loading,
-      icon,
-      className,
-      children,
-      disabled,
-      ...rest
-    },
-    ref,
-  ) {
-    return (
-      <button
-        ref={ref}
-        className={cn(
-          "inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap transition-[background-color,opacity,color] duration-150 select-none disabled:pointer-events-none disabled:opacity-40",
-          variants[variant],
-          sizes[size],
-          className,
-        )}
-        disabled={disabled || loading}
-        aria-busy={loading || undefined}
-        {...rest}
-      >
-        {loading ? (
-          <Loader2
-            className="size-3.5 animate-[spin_0.8s_linear_infinite]"
-            aria-hidden
-          />
-        ) : (
-          icon
-        )}
-        {children}
-      </button>
-    );
-  },
-);
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { variant = "secondary", size = "sm", loading, icon, className, children, disabled, ...rest },
+  ref,
+) {
+  return (
+    <button
+      ref={ref}
+      className={cn(
+        "inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap transition-[background-color,opacity,color] duration-150 select-none disabled:pointer-events-none disabled:opacity-40",
+        variants[variant],
+        sizes[size],
+        className,
+      )}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      {...rest}
+    >
+      {loading ? <Loader2 className="size-3.5 animate-[spin_0.8s_linear_infinite]" aria-hidden /> : icon}
+      {children}
+    </button>
+  );
+});
 
 export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string;
@@ -88,33 +70,29 @@ export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>
 }
 
 /** Icon-only button. Always has a tooltip and an accessible label. */
-export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
-  function IconButton(
-    { label, size = "sm", active, className, children, side = "top", ...rest },
-    ref,
-  ) {
-    const dim = size === "xs" ? "size-6" : size === "sm" ? "size-7" : "size-8";
-    return (
-      <Tooltip content={label} side={side}>
-        <button
-          ref={ref}
-          aria-label={label}
-          className={cn(
-            "inline-flex shrink-0 items-center justify-center rounded-md transition-colors duration-150 disabled:pointer-events-none disabled:opacity-40",
-            active
-              ? "bg-surface-3 text-fg"
-              : "text-fg-subtle hover:bg-surface-2 hover:text-fg",
-            dim,
-            className,
-          )}
-          {...rest}
-        >
-          {children}
-        </button>
-      </Tooltip>
-    );
-  },
-);
+export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
+  { label, size = "sm", active, className, children, side = "top", ...rest },
+  ref,
+) {
+  const dim = size === "xs" ? "size-7" : size === "sm" ? "size-9" : "size-10";
+  return (
+    <Tooltip content={label} side={side}>
+      <button
+        ref={ref}
+        aria-label={label}
+        className={cn(
+          "inline-flex shrink-0 items-center justify-center rounded-md transition-colors duration-150 disabled:pointer-events-none disabled:opacity-40",
+          active ? "bg-surface-3 text-fg" : "text-fg-subtle hover:bg-surface-2 hover:text-fg",
+          dim,
+          className,
+        )}
+        {...rest}
+      >
+        {children}
+      </button>
+    </Tooltip>
+  );
+});
 
 export function TooltipProvider({ children }: { children: ReactNode }) {
   return (
@@ -135,8 +113,7 @@ export function Tooltip({
   side?: "top" | "right" | "bottom" | "left";
   align?: "start" | "center" | "end";
 }) {
-  if (content === null || content === undefined || content === "")
-    return <>{children}</>;
+  if (content === null || content === undefined || content === "") return <>{children}</>;
   return (
     <RTooltip.Root>
       <RTooltip.Trigger asChild>{children}</RTooltip.Trigger>
@@ -155,16 +132,9 @@ export function Tooltip({
   );
 }
 
-export function Panel({
-  className,
-  children,
-  ...rest
-}: HTMLAttributes<HTMLDivElement>) {
+export function Panel({ className, children, ...rest }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div
-      className={cn("rounded-lg border border-border bg-surface", className)}
-      {...rest}
-    >
+    <div className={cn("min-w-0 rounded-xl border border-border bg-surface", className)} {...rest}>
       {children}
     </div>
   );
@@ -182,38 +152,21 @@ export function PanelHeader({
   className?: string;
 }) {
   return (
-    <div
-      className={cn(
-        "flex min-h-10 items-center gap-3 border-b border-border px-3.5 py-2",
-        className,
-      )}
-    >
+    <div className={cn("flex min-h-14 items-center gap-3 border-b border-border px-5 py-3", className)}>
       <div className="min-w-0 flex-1">
-        <h3 className="truncate text-[12.5px] font-medium text-fg">{title}</h3>
-        {subtitle && (
-          <p className="truncate text-2xs text-fg-subtle">{subtitle}</p>
-        )}
+        <h3 className="truncate text-sm font-medium text-fg">{title}</h3>
+        {subtitle && <p className="truncate text-2xs text-fg-subtle">{subtitle}</p>}
       </div>
-      {actions && (
-        <div className="flex shrink-0 items-center gap-1">{actions}</div>
-      )}
+      {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
     </div>
   );
 }
 
-export function Badge({
-  children,
-  className,
-  mono,
-}: {
-  children: ReactNode;
-  className?: string;
-  mono?: boolean;
-}) {
+export function Badge({ children, className, mono }: { children: ReactNode; className?: string; mono?: boolean }) {
   return (
     <span
       className={cn(
-        "inline-flex h-[18px] shrink-0 items-center gap-1 rounded-[4px] border border-border-strong px-1.5 text-2xs whitespace-nowrap text-fg-muted",
+        "inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-2xs whitespace-nowrap text-fg-muted",
         mono && "font-mono",
         className,
       )}
@@ -231,27 +184,14 @@ export function Kbd({ children }: { children: ReactNode }) {
   );
 }
 
-export function Mono({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <span className={cn("font-mono text-[12px] tnum", className)}>
-      {children}
-    </span>
-  );
+export function Mono({ children, className }: { children: ReactNode; className?: string }) {
+  return <span className={cn("font-mono text-xs tnum", className)}>{children}</span>;
 }
 
 export function Spinner({ className }: { className?: string }) {
   return (
     <Loader2
-      className={cn(
-        "size-3.5 animate-[spin_0.8s_linear_infinite] text-fg-subtle",
-        className,
-      )}
+      className={cn("size-3.5 animate-[spin_0.8s_linear_infinite] text-fg-subtle", className)}
       aria-label="Loading"
     />
   );
@@ -259,13 +199,7 @@ export function Spinner({ className }: { className?: string }) {
 
 export function Skeleton({ className }: { className?: string }) {
   return (
-    <div
-      className={cn(
-        "animate-[pulse-soft_1.6s_ease-in-out_infinite] rounded bg-surface-3",
-        className,
-      )}
-      aria-hidden
-    />
+    <div className={cn("animate-[pulse-soft_1.6s_ease-in-out_infinite] rounded bg-surface-3", className)} aria-hidden />
   );
 }
 
@@ -283,17 +217,10 @@ export function EmptyState({
   className?: string;
 }) {
   return (
-    <div
-      className={cn(
-        "flex flex-col items-center justify-center gap-2 px-6 py-10 text-center",
-        className,
-      )}
-    >
+    <div className={cn("flex flex-col items-center justify-center gap-2 px-6 py-10 text-center", className)}>
       {icon && <div className="mb-1 text-fg-faint [&_svg]:size-5">{icon}</div>}
-      <p className="text-[13px] font-medium text-fg">{title}</p>
-      {description && (
-        <p className="max-w-sm text-xs text-fg-subtle">{description}</p>
-      )}
+      <p className="text-sm font-medium text-fg">{title}</p>
+      {description && <p className="max-w-sm text-xs text-fg-subtle">{description}</p>}
       {action && <div className="mt-2">{action}</div>}
     </div>
   );
@@ -308,31 +235,30 @@ export function useField() {
   return useContext(FieldContext);
 }
 
-export const Input = forwardRef<
-  HTMLInputElement,
-  InputHTMLAttributes<HTMLInputElement> & { mono?: boolean }
->(function Input({ className, mono, ...rest }, ref) {
-  const field = useField();
-  return (
-    <input
-      id={field?.id}
-      aria-describedby={field?.description}
-      aria-invalid={field?.invalid || undefined}
-      ref={ref}
-      className={cn(
-        "h-8 w-full rounded-md border border-border-strong bg-bg px-2.5 text-[13px] text-fg placeholder:text-fg-faint transition-colors outline-none focus:border-fg-subtle disabled:opacity-50",
-        mono && "font-mono text-[12px]",
-        className,
-      )}
-      {...rest}
-    />
-  );
-});
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { mono?: boolean }>(
+  function Input({ className, mono, ...rest }, ref) {
+    const field = useField();
+    return (
+      <input
+        id={field?.id}
+        aria-describedby={field?.description}
+        aria-invalid={field?.invalid || undefined}
+        ref={ref}
+        className={cn(
+          "h-10 w-full rounded-lg border border-border-strong bg-bg px-3 text-sm text-fg placeholder:text-fg-faint transition-colors outline-none focus:border-fg-subtle disabled:opacity-50",
+          mono && "font-mono text-xs",
+          className,
+        )}
+        {...rest}
+      />
+    );
+  },
+);
 
-export const Textarea = forwardRef<
-  HTMLTextAreaElement,
-  TextareaHTMLAttributes<HTMLTextAreaElement>
->(function Textarea({ className, ...rest }, ref) {
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function Textarea(
+  { className, ...rest },
+  ref,
+) {
   const field = useField();
   return (
     <textarea
@@ -341,7 +267,7 @@ export const Textarea = forwardRef<
       aria-invalid={field?.invalid || undefined}
       ref={ref}
       className={cn(
-        "w-full resize-none rounded-md border border-border-strong bg-bg px-2.5 py-2 text-[13px] text-fg placeholder:text-fg-faint outline-none focus:border-fg-subtle",
+        "w-full resize-none rounded-md border border-border-strong bg-bg px-2.5 py-2 text-sm text-fg placeholder:text-fg-faint outline-none focus:border-fg-subtle",
         className,
       )}
       {...rest}
@@ -370,10 +296,7 @@ export function Field({
         </label>
         {children}
         {description && (
-          <div
-            id={description}
-            className={cn("text-2xs", error ? "text-fg" : "text-fg-subtle")}
-          >
+          <div id={description} className={cn("text-2xs", error ? "text-fg" : "text-fg-subtle")}>
             {error || hint}
           </div>
         )}
@@ -387,21 +310,6 @@ export function Divider({ className }: { className?: string }) {
 }
 
 /** Section label used in dense side panels and forms. */
-export function Eyebrow({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "text-2xs font-medium tracking-wide text-fg-subtle uppercase",
-        className,
-      )}
-    >
-      {children}
-    </div>
-  );
+export function Eyebrow({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cn("text-2xs font-medium tracking-wide text-fg-subtle uppercase", className)}>{children}</div>;
 }

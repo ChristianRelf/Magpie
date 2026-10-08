@@ -255,7 +255,7 @@ export function BarList({
             <div className="mb-1 flex items-baseline gap-2 text-xs">
               <span className="min-w-0 flex-1 truncate text-fg">{it.label}</span>
               {it.secondary && <span className="text-2xs text-fg-subtle">{it.secondary}</span>}
-              <span className="font-mono text-[11.5px] text-fg tnum">{format(it.value)}</span>
+              <span className="font-mono text-xs text-fg tnum">{format(it.value)}</span>
               <span className="w-9 text-right font-mono text-2xs text-fg-subtle tnum">{Math.round(share * 100)}%</span>
             </div>
             <div className="h-1.5 rounded-full bg-surface-3">

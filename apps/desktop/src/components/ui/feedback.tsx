@@ -1,10 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -17,20 +11,13 @@ import {
   X,
   CircleDot,
   Circle,
+  BadgeCheck,
+  Calculator,
+  CircleHelp,
 } from "lucide-react";
-import type {
-  ConnectionStatus,
-  ExecutionStatus,
-  LimitState,
-  Provenance,
-} from "@magpie/sdk";
+import type { ConnectionStatus, ExecutionStatus, LimitState, Provenance } from "@magpie/sdk";
 import { cn, Tooltip } from "./core";
-import {
-  CONNECTION_LABELS,
-  LIMIT_STATE_LABELS,
-  PROVENANCE_HELP,
-  PROVENANCE_LABELS,
-} from "@/lib/format";
+import { CONNECTION_LABELS, LIMIT_STATE_LABELS, PROVENANCE_HELP, PROVENANCE_LABELS } from "@/lib/format";
 
 // ------------------------------------------------------------------ toasts
 
@@ -48,10 +35,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const push = useCallback((t: Omit<Toast, "id">) => {
     const id = Date.now() + Math.random();
     setToasts((all) => [...all.slice(-3), { ...t, id }]);
-    setTimeout(
-      () => setToasts((all) => all.filter((x) => x.id !== id)),
-      t.tone === "error" ? 7000 : 3500,
-    );
+    setTimeout(() => setToasts((all) => all.filter((x) => x.id !== id)), t.tone === "error" ? 7000 : 3500);
   }, []);
   return (
     <ToastContext.Provider value={push}>
@@ -74,17 +58,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <CircleDot className="mt-px size-4 shrink-0 text-fg-muted" />
             )}
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-medium">{t.title}</p>
-              {t.description && (
-                <p className="mt-0.5 text-xs break-words text-fg-subtle">
-                  {t.description}
-                </p>
-              )}
+              <p className="text-sm font-medium">{t.title}</p>
+              {t.description && <p className="mt-0.5 text-xs break-words text-fg-subtle">{t.description}</p>}
             </div>
             <button
-              onClick={() =>
-                setToasts((all) => all.filter((x) => x.id !== t.id))
-              }
+              onClick={() => setToasts((all) => all.filter((x) => x.id !== t.id))}
               className="text-fg-subtle hover:text-fg"
               aria-label="Dismiss"
             >
@@ -108,48 +86,24 @@ export function errorMessage(e: unknown): string {
 // ----------------------------------------------------------- status glyphs
 
 /** Limit state: shape and fill carry meaning, never colour. */
-export function LimitGlyph({
-  state,
-  className,
-}: {
-  state: LimitState;
-  className?: string;
-}) {
+export function LimitGlyph({ state, className }: { state: LimitState; className?: string }) {
   const c = cn("size-3.5 shrink-0", className);
   switch (state) {
     case "available":
       return (
-        <span
-          className={cn(c, "inline-block rounded-full bg-fg-muted")}
-          style={{ width: 9, height: 9 }}
-          aria-hidden
-        />
+        <span className={cn(c, "inline-block rounded-full bg-fg-muted")} style={{ width: 9, height: 9 }} aria-hidden />
       );
     case "approaching":
       return (
         <svg viewBox="0 0 12 12" className={c} aria-hidden>
-          <circle
-            cx="6"
-            cy="6"
-            r="4.5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
+          <circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
           <path d="M6 1.5 A4.5 4.5 0 0 1 6 10.5 Z" fill="currentColor" />
         </svg>
       );
     case "limited":
       return (
         <svg viewBox="0 0 12 12" className={c} aria-hidden>
-          <circle
-            cx="6"
-            cy="6"
-            r="4.5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
+          <circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
           <path d="M6 1.5 A4.5 4.5 0 1 1 1.5 6 L6 6 Z" fill="currentColor" />
         </svg>
       );
@@ -162,13 +116,7 @@ export function LimitGlyph({
   }
 }
 
-export function LimitStatus({
-  state,
-  compact,
-}: {
-  state: LimitState;
-  compact?: boolean;
-}) {
+export function LimitStatus({ state, compact }: { state: LimitState; compact?: boolean }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-fg-muted">
       <LimitGlyph state={state} />
@@ -177,13 +125,7 @@ export function LimitStatus({
   );
 }
 
-export function ConnectionGlyph({
-  status,
-  className,
-}: {
-  status: ConnectionStatus;
-  className?: string;
-}) {
+export function ConnectionGlyph({ status, className }: { status: ConnectionStatus; className?: string }) {
   const c = cn("size-3.5 shrink-0", className);
   switch (status) {
     case "connected":
@@ -197,22 +139,11 @@ export function ConnectionGlyph({
     case "disabled":
       return <PowerOff className={cn(c, "text-fg-faint")} aria-hidden />;
     default:
-      return (
-        <CircleDashed
-          className={cn(c, "animate-[spin_3s_linear_infinite] text-fg-subtle")}
-          aria-hidden
-        />
-      );
+      return <CircleDashed className={cn(c, "animate-[spin_3s_linear_infinite] text-fg-subtle")} aria-hidden />;
   }
 }
 
-export function ConnectionStatusLabel({
-  status,
-  message,
-}: {
-  status: ConnectionStatus;
-  message?: string;
-}) {
+export function ConnectionStatusLabel({ status, message }: { status: ConnectionStatus; message?: string }) {
   return (
     <Tooltip content={status !== "connected" ? message : undefined}>
       <span className="inline-flex items-center gap-1.5 text-xs text-fg-muted">
@@ -226,21 +157,11 @@ export function ConnectionStatusLabel({
 export function ExecutionGlyph({ status }: { status: ExecutionStatus }) {
   switch (status) {
     case "succeeded":
-      return (
-        <CheckCircle2
-          className="size-3.5 text-fg-muted"
-          aria-label="Succeeded"
-        />
-      );
+      return <CheckCircle2 className="size-3.5 text-fg-muted" aria-label="Succeeded" />;
     case "failed":
       return <AlertCircle className="size-3.5 text-fg" aria-label="Failed" />;
     case "cancelled":
-      return (
-        <CircleSlash
-          className="size-3.5 text-fg-subtle"
-          aria-label="Cancelled"
-        />
-      );
+      return <CircleSlash className="size-3.5 text-fg-subtle" aria-label="Cancelled" />;
     default:
       return (
         <Circle
@@ -255,41 +176,37 @@ export function ExecutionGlyph({ status }: { status: ExecutionStatus }) {
 export function ProvenanceTag({
   provenance,
   className,
+  observedAt,
 }: {
   provenance: Provenance;
   className?: string;
+  observedAt?: string;
 }) {
-  const mark =
+  const Icon =
     provenance === "reported"
-      ? "R"
+      ? BadgeCheck
       : provenance === "calculated"
-        ? "C"
+        ? Calculator
         : provenance === "estimated"
-          ? "E"
-          : "–";
+          ? CircleDashed
+          : CircleHelp;
   return (
     <Tooltip
       content={
         <>
-          <span className="font-medium">{PROVENANCE_LABELS[provenance]}.</span>{" "}
-          {PROVENANCE_HELP[provenance]}
+          <span className="font-medium">{PROVENANCE_LABELS[provenance]}.</span> {PROVENANCE_HELP[provenance]}
+          {observedAt && (
+            <span className="mt-1 block text-fg-muted">Updated {new Date(observedAt).toLocaleString()}</span>
+          )}
         </>
       }
     >
       <span
-        className={cn(
-          "inline-flex size-[15px] shrink-0 items-center justify-center rounded-[3px] font-mono text-[9.5px] leading-none font-semibold",
-          provenance === "reported" && "bg-fg-muted text-bg",
-          provenance === "calculated" &&
-            "border border-fg-subtle text-fg-muted",
-          provenance === "estimated" &&
-            "border border-dashed border-fg-subtle text-fg-subtle",
-          provenance === "unavailable" && "text-fg-faint",
-          className,
-        )}
+        className={cn("inline-flex size-4 shrink-0 items-center justify-center text-fg-subtle", className)}
         aria-label={PROVENANCE_LABELS[provenance]}
+        tabIndex={0}
       >
-        {mark}
+        <Icon className="size-3.5" aria-hidden />
       </span>
     </Tooltip>
   );

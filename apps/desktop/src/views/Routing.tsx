@@ -273,7 +273,7 @@ function RoutingEditor({ initial }: { initial: RoutingConfig }) {
               onClick={() => patch({ preset: p.value })}
               className={`rounded-lg border p-3 text-left transition-colors ${draft.preset === p.value ? "border-fg-muted bg-surface-3" : "border-border bg-surface hover:border-border-strong"}`}
             >
-              <div className="text-[13px] font-medium">{p.label}</div>
+              <div className="text-sm font-medium">{p.label}</div>
               <p className="mt-1 text-xs text-fg-subtle">{p.description}</p>
             </button>
           ))}

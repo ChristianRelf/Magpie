@@ -1,5 +1,6 @@
 import type { LimitState, LimitWindow } from "@magpie/sdk";
 import { useEffect, useState } from "react";
+import { Clock3 } from "lucide-react";
 import { compact, duration, usd } from "@/lib/format";
 import { LimitGlyph, Meter, ProvenanceTag } from "./ui/feedback";
 import { Tooltip } from "./ui/core";
@@ -65,25 +66,23 @@ export function LimitWindowRow({ w, now }: { w: LimitWindow; now: number }) {
           </span>
         </Tooltip>
         <span className="min-w-0 flex-1 truncate text-fg">{w.label}</span>
-        <span className="font-mono text-[11.5px] text-fg-muted tnum">
+        <span className="font-mono text-xs text-fg-muted tnum">
           {state === "reset_pending" ? "Awaiting update" : windowValue(w)}
         </span>
-        <ProvenanceTag provenance={w.provenance} />
+        <ProvenanceTag provenance={w.provenance} observedAt={w.observed_at} />
       </div>
-      {w.metric !== "spend" && <Meter value={state === "reset_pending" ? null : usedFraction(w)} label={w.label} />}
-      <div className="text-2xs text-fg-subtle" title={new Date(w.observed_at).toLocaleString()}>
-        Observed{" "}
-        {new Date(w.observed_at).toLocaleString([], {
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        })}
-      </div>
+      {w.metric !== "spend" && (
+        <Meter className="h-1.5" value={state === "reset_pending" ? null : usedFraction(w)} label={w.label} />
+      )}
       {(reset || w.model_scope) && (
-        <div className="flex justify-between text-2xs text-fg-subtle">
-          <span className="font-mono">{w.model_scope ?? ""}</span>
-          <span>{reset}</span>
+        <div className="flex flex-wrap items-center justify-between gap-2 text-2xs text-fg-subtle">
+          {w.model_scope && <span className="font-mono">{w.model_scope}</span>}
+          {reset && (
+            <span className="ml-auto inline-flex items-center gap-1.5">
+              <Clock3 className="size-3" aria-hidden />
+              {reset}
+            </span>
+          )}
         </div>
       )}
     </div>

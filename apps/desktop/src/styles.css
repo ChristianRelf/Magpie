@@ -8,22 +8,19 @@
  * Magpie design tokens. Strictly neutral: black, white, charcoal, graphite
  * and greys. State is never communicated by colour alone; icons and labels
  * carry it.
- *
- * Chart series steps were validated for separation (OKLab dE >= 19) and
- * >= 3:1 contrast against the chart surface in each theme.
  */
 :root {
-  --bg: #fafafa;
-  --bg-subtle: #f4f4f4;
-  --surface: #fcfcfc;
-  --surface-2: #f5f5f5;
-  --surface-3: #ececec;
-  --border: #e6e6e6;
-  --border-strong: #d4d4d4;
+  --bg: #f5f5f4;
+  --bg-subtle: #f1f1f0;
+  --surface: #f8f8f7;
+  --surface-2: #eeeeed;
+  --surface-3: #e6e6e4;
+  --border: #e1e1df;
+  --border-strong: #cececb;
   --fg: #171717;
   --fg-muted: #5f5f5f;
-  --fg-subtle: #8a8a8a;
-  --fg-faint: #b5b5b5;
+  --fg-subtle: #686866;
+  --fg-faint: #969692;
   --accent: #111111;
   --accent-fg: #fafafa;
   --ring: #171717;
@@ -36,17 +33,17 @@
 }
 
 .dark {
-  --bg: #0a0a0a;
-  --bg-subtle: #0d0d0d;
-  --surface: #0e0e0e;
-  --surface-2: #141414;
-  --surface-3: #1c1c1c;
-  --border: #1e1e1e;
-  --border-strong: #2f2f2f;
+  --bg: #141414;
+  --bg-subtle: #161616;
+  --surface: #181818;
+  --surface-2: #1e1e1e;
+  --surface-3: #262626;
+  --border: #292929;
+  --border-strong: #3b3b3b;
   --fg: #ededed;
   --fg-muted: #a3a3a3;
-  --fg-subtle: #737373;
-  --fg-faint: #4a4a4a;
+  --fg-subtle: #a0a0a0;
+  --fg-faint: #6b6b6b;
   --accent: #ededed;
   --accent-fg: #0a0a0a;
   --ring: #d4d4d4;
@@ -54,7 +51,7 @@
   --series-1: #ededed;
   --series-2: #a3a3a3;
   --series-3: #626262;
-  --grid: #1e1e1e;
+  --grid: #292929;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -12px rgb(0 0 0 / 0.7);
 }
 
@@ -79,8 +76,12 @@
   --color-series-2: var(--series-2);
   --color-series-3: var(--series-3);
   --shadow-panel: var(--shadow);
-  --text-2xs: 0.6875rem;
-  --text-2xs--line-height: 1rem;
+  --text-2xs: 0.75rem;
+  --text-2xs--line-height: 1.125rem;
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.25rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.375rem;
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -94,8 +95,8 @@
     background: var(--bg);
     color: var(--fg);
     font-family: var(--font-sans);
-    font-size: 13px;
-    line-height: 1.45;
+    font-size: 15px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -137,6 +138,49 @@
   .tnum {
     font-variant-numeric: tabular-nums;
   }
+}
+
+/* Keep icons anchored and labels mounted throughout the sidebar transition. */
+.sidebar {
+  width: 256px;
+  overflow: hidden;
+  transition: width 280ms var(--ease-out-soft);
+}
+.sidebar[data-collapsed="true"] {
+  width: 72px;
+}
+.sidebar-label {
+  min-width: 0;
+  white-space: nowrap;
+  opacity: 1;
+  transition:
+    opacity 180ms ease,
+    transform 280ms var(--ease-out-soft);
+}
+.sidebar[data-collapsed="true"] .sidebar-label {
+  opacity: 0;
+  transform: translateX(-6px);
+  pointer-events: none;
+}
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  position: relative;
+  height: 44px;
+  min-height: 44px;
+  gap: 14px;
+  padding: 0 14px;
+  border-radius: 9px;
+  text-align: left;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+.sidebar-item > svg,
+.sidebar-item > .sidebar-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
 }
 
 @layer utilities {
@@ -215,7 +259,7 @@
 }
 .recharts-cartesian-axis-tick-value {
   fill: var(--fg-subtle);
-  font-size: 11px;
+  font-size: 12px;
   font-family: var(--font-mono);
 }
 .recharts-surface:focus {

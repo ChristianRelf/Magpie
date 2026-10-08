@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Copy, KeyRound, Plus, Terminal, Shield } from "lucide-react";
 import { Page } from "@/components/Page";
-import { Badge, Button, EmptyState, Field, Input, Mono, Panel, PanelHeader } from "@/components/ui/core";
+import { Badge, Button, EmptyState, Field, IconButton, Input, Mono, Panel, PanelHeader } from "@/components/ui/core";
 import { Dialog, Select } from "@/components/ui/controls";
 import { QueryState } from "@/components/QueryState";
 import { useKeys } from "@/lib/queries";
@@ -14,16 +14,15 @@ function CodeBlock({ code }: { code: string }) {
   const action = useAction();
   return (
     <div className="relative rounded-md border border-border bg-bg p-3">
-      <Button
+      <IconButton
+        label="Copy code"
         className="absolute top-2 right-2"
         size="xs"
-        variant="ghost"
-        icon={<Copy className="size-3" />}
         onClick={() => void action.run(() => copyText(code), "Copied")}
       >
-        Copy
-      </Button>
-      <pre className="overflow-x-auto pr-14 font-mono text-[11.5px] leading-relaxed text-fg-muted">{code}</pre>
+        <Copy className="size-4" />
+      </IconButton>
+      <pre className="overflow-x-auto pr-14 font-mono text-xs leading-relaxed text-fg-muted">{code}</pre>
     </div>
   );
 }
@@ -48,7 +47,6 @@ export function Integrations() {
   return (
     <Page
       title="Integrations"
-      subtitle="Give your tools one local endpoint"
       actions={
         <Button variant="primary" icon={<Plus className="size-3.5" />} onClick={() => setCreate(true)}>
           Create access key
@@ -66,12 +64,12 @@ export function Integrations() {
                 For tools that support a custom endpoint. Use a separate, revocable key for each integration.
               </p>
             </div>
-            <Button
-              icon={<Copy className="size-3" />}
+            <IconButton
+              label="Copy endpoint"
               onClick={() => void action.run(() => copyText(`${url}/v1`), "Endpoint copied")}
             >
-              Copy
-            </Button>
+              <Copy className="size-4" />
+            </IconButton>
           </div>
         </Panel>
         <Panel>
@@ -93,7 +91,7 @@ export function Integrations() {
                 <Shield className="size-4 text-fg-subtle" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="truncate text-[13px] font-medium">{key.name}</span>
+                    <span className="truncate text-sm font-medium">{key.name}</span>
                     {key.revoked_at && <Badge>Revoked</Badge>}
                   </div>
                   <p className="mt-1 font-mono text-2xs text-fg-subtle">

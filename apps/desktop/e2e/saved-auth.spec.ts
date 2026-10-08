@@ -63,12 +63,7 @@ test("saved profiles complete login without the dialog and remain independently 
   expect(work.id).not.toBe(personal.id);
   expect(work.identity).not.toBe(personal.identity);
   // Add another credential opens the correct provider's guided flow.
-  const card = page
-    .locator("div")
-    .filter({ has: page.getByText("Work sign-in fixture", { exact: true }) })
-    .filter({ has: page.getByRole("button", { name: "Manage", exact: true }) })
-    .last();
-  await card.getByRole("button", { name: "Manage", exact: true }).click();
+  await page.getByRole("button", { name: "Manage Work sign-in fixture", exact: true }).click();
   await page.getByRole("button", { name: "Add another credential", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("Connect Codex");
   await page.getByRole("button", { name: "Cancel", exact: true }).click();

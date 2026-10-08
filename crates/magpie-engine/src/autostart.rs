@@ -7,6 +7,18 @@ use magpie_core::*;
 
 const ID: &str = "dev.magpie.harness";
 
+/// Registry checks run when the UI reads settings, including during navigation.
+/// A detached harness must never create a console for these background commands.
+#[cfg(target_os = "windows")]
+fn registry_command() -> std::process::Command {
+    use std::os::windows::process::CommandExt;
+    use std::process::Stdio;
+
+    let mut command = std::process::Command::new("reg.exe");
+    command.creation_flags(0x0800_0000).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()); // CREATE_NO_WINDOW
+    command
+}
+
 fn home() -> Option<PathBuf> {
     std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from)
 }
@@ -45,7 +57,7 @@ pub fn enable(program: &Path, args: &[String]) -> HarnessResult<()> {
     #[cfg(target_os = "windows")]
     {
         let cmdline = std::iter::once(quote(&prog)).chain(args.iter().map(|a| quote(a))).collect::<Vec<_>>().join(" ");
-        let status = std::process::Command::new("reg")
+        let status = registry_command()
             .args([
                 "add",
                 r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
@@ -88,7 +100,7 @@ pub fn enable(program: &Path, args: &[String]) -> HarnessResult<()> {
 pub fn disable() -> HarnessResult<()> {
     #[cfg(target_os = "windows")]
     {
-        let _ = std::process::Command::new("reg")
+        let _ = registry_command()
             .args(["delete", r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run", "/v", "MagpieHarness", "/f"])
             .status();
         return Ok(());
@@ -109,10 +121,10 @@ pub fn disable() -> HarnessResult<()> {
 pub fn is_enabled() -> bool {
     #[cfg(target_os = "windows")]
     {
-        return std::process::Command::new("reg")
+        return registry_command()
             .args(["query", r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run", "/v", "MagpieHarness"])
-            .output()
-            .map(|o| o.status.success())
+            .status()
+            .map(|status| status.success())
             .unwrap_or(false);
     }
     #[allow(unreachable_code)]

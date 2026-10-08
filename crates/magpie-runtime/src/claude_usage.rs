@@ -72,7 +72,8 @@ fn atomic_json(path: &Path, value: &impl Serialize) -> Result<(), String> {
     let path = resolved.as_deref().unwrap_or(path);
     let parent = path.parent().ok_or("Missing parent directory")?;
     std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    let temp = parent.join(format!(".magpie-{}-{}.tmp", std::process::id(), magpie_core::now().timestamp_nanos_opt().unwrap_or_default()));
+    // Windows clock resolution can give concurrent writes the same timestamp.
+    let temp = parent.join(format!(".{}.tmp", magpie_core::new_id("magpie-statusline")));
     let bytes = serde_json::to_vec_pretty(value).map_err(|e| e.to_string())?;
     let result = write_private(&temp, &bytes).and_then(|_| std::fs::rename(&temp, path));
     if result.is_err() {
@@ -120,10 +121,12 @@ fn status_shell(command: &str) -> tokio::process::Command {
         }
         if let Some(bash) = candidates.into_iter().find(|p| p.is_file()) {
             let mut c = tokio::process::Command::new(bash);
+            c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
             c.args(["-c", command]);
             return c;
         }
         let mut c = tokio::process::Command::new("powershell.exe");
+        c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
         let script = format!("$OutputEncoding=[System.Text.UTF8Encoding]::new($false); [Console]::InputEncoding=$OutputEncoding; [Console]::OutputEncoding=$OutputEncoding; {command}");
         c.args(["-NoProfile", "-NonInteractive", "-EncodedCommand", &powershell_script(&script)]);
         c
@@ -265,11 +268,7 @@ mod tests {
     use super::*;
 
     fn fixture() -> (Paths, PathBuf) {
-        let root = std::env::temp_dir().join(format!(
-            "magpie-statusline-{}-{}",
-            std::process::id(),
-            magpie_core::now().timestamp_nanos_opt().unwrap()
-        ));
+        let root = std::env::temp_dir().join(magpie_core::new_id("magpie-statusline-test"));
         (Paths::at(root.join("magpie")), root.join("claude/settings.json"))
     }
 

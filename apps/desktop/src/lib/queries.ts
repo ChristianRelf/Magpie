@@ -124,6 +124,9 @@ export function useSettings() {
     queryKey: ["settings"],
     queryFn: () => client.settings(),
     enabled,
+    // Settings events and reconnects invalidate this cache. Mounting another
+    // tab should not repeat the OS start-on-login check.
+    refetchOnMount: false,
   });
 }
 

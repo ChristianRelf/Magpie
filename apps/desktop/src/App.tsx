@@ -70,7 +70,7 @@ function Disconnected() {
   return (
     <CenterScreen>
       <div>
-        <p className="text-[14px] font-medium">The harness is not running</p>
+        <p className="text-base font-medium">The harness is not running</p>
         <p className="mt-1 max-w-sm text-xs text-fg-subtle">{error}</p>
       </div>
       <Button
