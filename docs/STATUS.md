@@ -27,7 +27,13 @@ Updated 2026-10-08. Implemented code and verified release behaviour are recorded
 - Final Linux `.deb`, AppImage and standalone CLI builds completed from `493c3db`, including the quota-provenance and redirect corrections.
 - The final AppImage passed authenticated lifecycle checks with the final release CLI: scoped access, durable settings across restart, duplicate-process protection and graceful shutdown without a display. Delivery packages and SHA-256 checksums are available in `/srv/codex/cache/magpie/delivery` on the build machine.
 - JavaScript production dependency audit: no known vulnerabilities. Rust audit completed with two informational transitive GTK findings; see SECURITY.md. Do not describe the Rust audit as clean.
-- Commits are pushed to `origin/main` as requested. No live provider calls, paid execution, signing/notarisation or public release have been claimed.
+- Commits are pushed to `origin/main` as requested. No live provider calls, paid execution or production signing/notarisation have been claimed.
+
+## Published release
+
+- [Magpie v0.1](https://github.com/ChristianRelf/Magpie/releases/tag/v0.1) was published on 2026-10-08 at the user's request. Its application version is `0.1.0`; the release tag points to the tested source commit `493c3dbf79b85721f87ebe1414d0a28c76f99ea6`.
+- Five unchanged CI installers are attached: Linux x64 `.deb`/AppImage, Windows x64 NSIS, and Apple Silicon/Intel macOS DMGs. `SHA256SUMS` and `release-manifest.json` record hashes and build provenance. All seven uploaded asset digests were verified against local files before publication.
+- The release notes explicitly disclose unsigned/unnotarised builds, unavailable automatic updates, outstanding manual/provider verification and both upstream Rust audit findings. Publication does not resolve the release gates below.
 
 ## Cross-platform verification
 
