@@ -667,3 +667,60 @@ async fn cannot_disconnect_a_saved_credential_while_a_fallback_is_using_it() {
     while handle.events.recv().await.is_some() {}
     f.h.delete_account(&backup.id).await.unwrap();
 }
+
+#[tokio::test]
+async fn disconnect_waits_for_credential_replacement_then_removes_the_new_secret() {
+    use magpie_security::secrets::SecretError;
+    use magpie_security::SecretStore;
+    struct DelayedStore {
+        inner: MemorySecretStore,
+        armed: std::sync::atomic::AtomicBool,
+        entered: tokio::sync::Notify,
+        release: std::sync::Barrier,
+    }
+    impl SecretStore for DelayedStore {
+        fn set(&self, id: &str, secret: &str) -> Result<SecretBackend, SecretError> {
+            if self.armed.swap(false, Ordering::SeqCst) {
+                self.entered.notify_one();
+                self.release.wait();
+            }
+            self.inner.set(id, secret)
+        }
+        fn get(&self, id: &str, backend: Option<SecretBackend>) -> Result<Option<String>, SecretError> {
+            self.inner.get(id, backend)
+        }
+        fn delete(&self, id: &str, backend: Option<SecretBackend>) -> Result<(), SecretError> {
+            self.inner.delete(id, backend)
+        }
+    }
+    let mut f = fixture().await;
+    let secrets = Arc::new(DelayedStore {
+        inner: MemorySecretStore::default(),
+        armed: false.into(),
+        entered: tokio::sync::Notify::new(),
+        release: std::sync::Barrier::new(2),
+    });
+    Arc::get_mut(&mut f.h).unwrap().secrets = secrets.clone();
+    let account = connect(&f, ProviderKind::OpenAi).await;
+    secrets.armed.store(true, Ordering::SeqCst);
+    let h = f.h.clone();
+    let id = account.id.clone();
+    let replacing = tokio::spawn(async move {
+        h.update_account(&id, AccountPatch { api_key: Some("sk-test-replacement-credential".into()), ..Default::default() }).await
+    });
+    secrets.entered.notified().await;
+    let h = f.h.clone();
+    let id = account.id.clone();
+    let revoking = tokio::spawn(async move { h.delete_account(&id).await });
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    let removed_during_write = revoking.is_finished();
+    // Always release the blocking writer, even if the regression was detected.
+    secrets.release.wait();
+    let replacement = replacing.await.unwrap();
+    let revocation = revoking.await.unwrap();
+    assert!(!removed_during_write, "disconnect must not race a keyring write");
+    replacement.unwrap();
+    revocation.unwrap();
+    assert!(f.h.get_account(&account.id).is_none());
+    assert!(secrets.get(&account.id, None).unwrap().is_none(), "replacement must not leave an orphan credential");
+}

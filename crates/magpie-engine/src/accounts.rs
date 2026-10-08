@@ -262,6 +262,9 @@ impl Harness {
     }
 
     pub async fn update_account(&self, id: &str, patch: AccountPatch) -> HarnessResult<Account> {
+        // A keyring write can outlive an overlapping disconnect. Serialize
+        // credential mutations so replacement cannot recreate a revoked key.
+        let _guard = self.connect_lock.lock().await;
         let mut account = self.get_account(id).ok_or_else(|| HarnessError::new(ErrorKind::ModelNotFound, "Account not found"))?;
         let mut rebuild = false;
         if let Some(l) = patch.label.filter(|l| !l.trim().is_empty()) {
