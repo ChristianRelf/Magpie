@@ -30,7 +30,7 @@ Telemetry scopes grant visibility to retained execution metadata across clients.
 }
 ```
 
-POST to `/v1/responses`. Use `messages` for multi-turn structured input and tool results; `instructions` supplies a system prompt. `tools`, `tool_choice`, `response_format`, `reasoning_effort` and image content are negotiated against adapter capabilities. Unsupported requirements yield a structured error or an eligible fallback, never a silent downgrade. Explicit model IDs may be a harness model key or a provider/model ID from `/v1/models`.
+POST to `/v1/responses`. Use an `input` array of message objects for multi-turn structured input and tool results; `instructions` supplies a system prompt. The top-level `messages` field belongs to `/v1/chat/completions`, not the native endpoint. `tools`, `tool_choice`, `response_format`, `reasoning_effort` and image content are negotiated against adapter capabilities. Unsupported requirements yield a structured error or an eligible fallback, never a silent downgrade. Explicit model IDs may be a harness model key or a provider/model ID from `/v1/models`.
 
 SSE data frames are typed JSON: `started`, `text_delta`, `reasoning_delta`, `tool_call`, `routing_changed`, `completed`, or `failed` (see the SDK's `ExecEvent` union for all events). Completion includes consistent result, usage, cost, model, timing and routing metadata. Frames must be parsed across arbitrary byte boundaries. Disconnecting the stream cancels its request. Events are live; reconnecting does not replay an event log. Use `/v1/executions` to reconcile history.
 
